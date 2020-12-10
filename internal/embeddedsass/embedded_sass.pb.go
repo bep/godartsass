@@ -8,7 +8,7 @@
 // 	protoc        v3.14.0
 // source: embedded_sass.proto
 
-package embedded_sass
+package embeddedsass
 
 import (
 	reflect "reflect"

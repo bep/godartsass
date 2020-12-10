@@ -1,5 +1,8 @@
-module github.com/bep/gosassdart
+module github.com/bep/godartsass
 
 go 1.15
 
-require google.golang.org/protobuf v1.25.0 // indirect
+require (
+	github.com/frankban/quicktest v1.11.2
+	google.golang.org/protobuf v1.25.0
+)
