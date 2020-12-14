@@ -6,7 +6,7 @@ The primary motivation for this project is to provide `SCSS` support to [Hugo](h
 
 For LibSass bindings in Go, see [GoLibSass](https://github.com/bep/golibsass).
 
-The benchmark below compares [GoLibSass](https://github.com/bep/golibsass) with this library. This is almost twice as fast when running single-threaded, but slower when running with multiple Goroutines. We're communicating with the host process via stdin/stdout, which becomes the serialized bottle neck here. That may be possible to improve, but for most practical applications (including Hugo), this should not matter.
+The benchmark below compares [GoLibSass](https://github.com/bep/golibsass) with this library. This is almost twice as fast when running single-threaded, but slower when running with multiple Goroutines. We're communicating with the compiler process via stdin/stdout, which becomes the serialized bottle neck here. That may be possible to improve, but for most practical applications (including Hugo), this should not matter.
 
 ```bash
 Transpile/SCSS-16              770µs ± 0%     467µs ± 1%   -39.36%  (p=0.029 n=4+4)

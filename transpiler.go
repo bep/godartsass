@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/bep/godartsass/internal/embeddedsass"
@@ -14,6 +15,7 @@ import (
 
 const (
 	defaultDartSassEmbeddedFilename = "dart-sass-embedded"
+	dummyImportSchema               = "godartimport:"
 )
 
 // Start creates an starts a new SCSS transpiler that communicates with the
@@ -42,17 +44,22 @@ func Start(opts Options) (*Transpiler, error) {
 	return t, nil
 }
 
-type Options struct {
-	// The path to the Dart Sass wrapper binary, an absolute filename
-	// if not in $PATH.
-	// If this is not set, we will try 'dart-sass-embedded' in $PATH.
-	// There may be several ways to install this, one would be to
-	// download it from here: https://github.com/sass/dart-sass-embedded/releases
-	DartSassEmbeddedFilename string
-}
-
 type Result struct {
 	CSS string
+}
+
+// ImportResolver allows custom import resolution.
+// CanonicalizeURL should create a canonical version of the given URL if it's
+// able to resolve it, else return an empty string.
+// Include scheme if relevant, e.g. 'file://foo/bar.scss'.
+// Importers   must ensure that the same canonical URL
+// always refers to the same stylesheet.
+//
+// Load loads the canonicalized URL's content.
+// TODO1 consider errors.
+type ImportResolver interface {
+	CanonicalizeURL(url string) string
+	Load(canonicalizedURL string) string
 }
 
 type Transpiler struct {
@@ -71,42 +78,66 @@ func (c *Transpiler) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Transpiler) Execute(src string) (Result, error) {
+const importerID = 5679
+
+func (c *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
 
-	req := &embeddedsass.InboundMessage_CompileRequest_{
+	if err := args.init(); err != nil {
+		return result, err
+	}
+
+	message := &embeddedsass.InboundMessage_CompileRequest_{
 		CompileRequest: &embeddedsass.InboundMessage_CompileRequest{
+			Importers: c.opts.createImporters(),
+			Style:     args.sassOutputStyle,
 			Input: &embeddedsass.InboundMessage_CompileRequest_String_{
 				String_: &embeddedsass.InboundMessage_CompileRequest_StringInput{
-					Source: src,
-					// TODO1: importers etc.
+					Syntax: args.sassSourceSyntax,
+					Source: args.Source,
 				},
 			},
 		},
 	}
 
-	request := &call{
-		Request: &embeddedsass.InboundMessage{
-			Message: req,
+	resp, err := c.invoke(
+		&embeddedsass.InboundMessage{
+			Message: message,
 		},
-		Done: make(chan *call, 1),
+	)
+
+	if err != nil {
+		return result, err
 	}
 
-	response := <-c.send(request).Done
+	csp := resp.Message.(*embeddedsass.OutboundMessage_CompileResponse_)
 
-	if response.Error != nil {
-		return result, response.Error
-	}
-
-	resp := response.Response.Message.(*embeddedsass.OutboundMessage_CompileResponse_)
-
-	if resp, ok := resp.CompileResponse.Result.(*embeddedsass.OutboundMessage_CompileResponse_Success); ok {
+	switch resp := csp.CompileResponse.Result.(type) {
+	case *embeddedsass.OutboundMessage_CompileResponse_Success:
 		result.CSS = resp.Success.Css
-	} else {
-		// TODO1
+	case *embeddedsass.OutboundMessage_CompileResponse_Failure:
+		// TODO1 create a better error: offset, context etc.
+		return result, fmt.Errorf("compile failed: %s", resp.Failure.GetMessage())
+	default:
+		return result, fmt.Errorf("unsupported response type: %T", resp)
 	}
 
 	return result, nil
+}
+
+func (t *Transpiler) invoke(message *embeddedsass.InboundMessage) (*embeddedsass.OutboundMessage, error) {
+	request := &call{
+		Request: message,
+		Done:    make(chan *call, 1),
+	}
+
+	response := <-t.sendCall(request).Done
+
+	if response.Error != nil {
+		return nil, response.Error
+	}
+
+	return response.Response, nil
 }
 
 func (t *Transpiler) input() {
@@ -148,6 +179,50 @@ func (t *Transpiler) input() {
 			}
 			call.Response = &msg
 			call.done()
+		case *embeddedsass.OutboundMessage_CanonicalizeRequest_:
+			var url *embeddedsass.InboundMessage_CanonicalizeResponse_Url
+			if resolved := t.opts.ImportResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl()); resolved != "" {
+				if !strings.Contains(resolved, ":") {
+					// Add a dummy schema.
+					resolved = dummyImportSchema + ":" + resolved
+				}
+				url = &embeddedsass.InboundMessage_CanonicalizeResponse_Url{
+					Url: resolved,
+				}
+			}
+
+			response := &embeddedsass.InboundMessage_CanonicalizeResponse_{
+				CanonicalizeResponse: &embeddedsass.InboundMessage_CanonicalizeResponse{
+					Id:     c.CanonicalizeRequest.GetId(),
+					Result: url,
+				},
+			}
+
+			t.sendInboundMessage(
+				&embeddedsass.InboundMessage{
+					Message: response,
+				},
+			)
+
+		case *embeddedsass.OutboundMessage_ImportRequest_:
+			response := &embeddedsass.InboundMessage_ImportResponse_{
+				ImportResponse: &embeddedsass.InboundMessage_ImportResponse{
+					Id: c.ImportRequest.GetId(),
+					Result: &embeddedsass.InboundMessage_ImportResponse_Success{
+						Success: &embeddedsass.InboundMessage_ImportResponse_ImportSuccess{
+							Contents: t.opts.ImportResolver.Load(strings.TrimPrefix(c.ImportRequest.GetUrl(), dummyImportSchema)),
+						},
+					},
+				},
+			}
+
+			t.sendInboundMessage(
+				&embeddedsass.InboundMessage{
+					Message: response,
+				},
+			)
+		case *embeddedsass.OutboundMessage_LogEvent_:
+			// Drop these for now.
 		case *embeddedsass.OutboundMessage_Error:
 			err = fmt.Errorf("SASS error: %s", c.Error.GetMessage())
 		default:
@@ -162,7 +237,7 @@ func (t *Transpiler) input() {
 	}
 }
 
-func (t *Transpiler) send(call *call) *call {
+func (t *Transpiler) sendCall(call *call) *call {
 	t.reqMu.Lock()
 	defer t.reqMu.Unlock()
 
@@ -177,14 +252,19 @@ func (t *Transpiler) send(call *call) *call {
 	case *embeddedsass.InboundMessage_CompileRequest_:
 		c.CompileRequest.Id = id
 	default:
-		call.Error = fmt.Errorf("unsupported message type. %T", call.Request.Message)
+		call.Error = fmt.Errorf("unsupported request message type. %T", call.Request.Message)
 		return call
 	}
 
-	out, err := proto.Marshal(call.Request)
+	call.Error = t.sendInboundMessage(call.Request)
+
+	return call
+}
+
+func (t *Transpiler) sendInboundMessage(message *embeddedsass.InboundMessage) error {
+	out, err := proto.Marshal(message)
 	if err != nil {
-		call.Error = fmt.Errorf("failed to marshal request: %s", err)
-		return call
+		return fmt.Errorf("failed to marshal request: %s", err)
 	}
 
 	// Every message must begin with a 4-byte (32-bit) unsigned little-endian
@@ -192,19 +272,14 @@ func (t *Transpiler) send(call *call) *call {
 	reqLen := uint32(len(out))
 
 	if err := binary.Write(t.conn, binary.LittleEndian, reqLen); err != nil {
-		call.Error = err
-		return call
+		return err
 	}
 
 	n, err := t.conn.Write(out)
 	if n != len(out) {
-		call.Error = errors.New("failed to write payload")
-		return call
+		return errors.New("failed to write payload")
 	}
-
-	call.Error = err
-
-	return call
+	return err
 }
 
 type call struct {
@@ -220,4 +295,20 @@ func (call *call) done() {
 	case call.Done <- call:
 	default:
 	}
+}
+
+type debugReadWriteCloser struct {
+	io.ReadWriteCloser
+}
+
+func (w debugReadWriteCloser) Read(p []byte) (n int, err error) {
+	n, err = w.ReadWriteCloser.Read(p)
+	fmt.Printf("READ=>%q<=\n", p)
+	return
+}
+
+func (w debugReadWriteCloser) Write(p []byte) (n int, err error) {
+	n, err = w.ReadWriteCloser.Write(p)
+	fmt.Printf("Write=>%q<=\n", p)
+	return
 }

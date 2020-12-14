@@ -2,6 +2,7 @@ package godartsass
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -31,23 +32,79 @@ const (
 	sassSampleTranspiled = "nav ul {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\nnav li {\n  display: inline-block;\n}\nnav a {\n  display: block;\n  padding: 6px 12px;\n  text-decoration: none;\n}"
 )
 
-func TestTranspileSingle(t *testing.T) {
+type testImportResolver struct {
+	name    string
+	content string
+}
+
+func (t testImportResolver) CanonicalizeURL(url string) string {
+	if url != t.name {
+		return ""
+	}
+
+	return url
+}
+
+func (t testImportResolver) Load(url string) string {
+	if !strings.Contains(url, t.name) {
+		panic("protocol error")
+	}
+	return t.content
+}
+
+func TestTranspilerVariants(t *testing.T) {
 	c := qt.New(t)
 
-	transpiler, clean := newTestTranspiler(c)
-	defer clean()
+	colorsResolver := testImportResolver{
+		name:    "colors",
+		content: `$white:    #ffff`,
+	}
 
-	for i := 0; i < 2; i++ {
-		result, err := transpiler.Execute(sassSample)
-		c.Assert(err, qt.IsNil)
+	for _, test := range []struct {
+		name   string
+		opts   Options
+		args   Args
+		expect interface{}
+	}{
+		{"Output style compressed", Options{}, Args{Source: "div { color: #ccc; }", OutputStyle: OutputStyleCompressed}, "div{color:#ccc}"},
+		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
+		{"Import not found", Options{}, Args{Source: "@import \"foo\""}, false},
+		{"Sass syntax", Options{}, Args{
+			Source: `$font-stack:    Helvetica, sans-serif
+$primary-color: #333
 
-		c.Assert(result.CSS, qt.Equals, sassSampleTranspiled)
+body
+  font: 100% $font-stack
+  color: $primary-color
+`,
+			OutputStyle:  OutputStyleCompressed,
+			SourceSyntax: SourceSyntaxSASS,
+		}, "body{font:100% Helvetica,sans-serif;color:#333}"},
+		{"Import resolver", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }"}, "div p {\n  color: #ffff;\n}"},
+		//{"Precision", Options{Precision: 3}, "div { width: percentage(1 / 3); }", "div {\n  width: 33.333%; }\n"},
+	} {
+
+		test := test
+		c.Run(test.name, func(c *qt.C) {
+			b, ok := test.expect.(bool)
+			shouldFail := ok && !b
+			transpiler, clean := newTestTranspiler(c, test.opts)
+			defer clean()
+			result, err := transpiler.Execute(test.args)
+			if shouldFail {
+				c.Assert(err, qt.Not(qt.IsNil))
+			} else {
+				c.Assert(err, qt.IsNil)
+				c.Assert(result.CSS, qt.Equals, test.expect)
+			}
+		})
+
 	}
 }
 
-func TestTranspileParallel(t *testing.T) {
+func TestTranspilerParallel(t *testing.T) {
 	c := qt.New(t)
-	transpiler, clean := newTestTranspiler(c)
+	transpiler, clean := newTestTranspiler(c, Options{})
 	defer clean()
 	var wg sync.WaitGroup
 
@@ -61,7 +118,7 @@ $primary-color: #%03d;
 
 div { color: $primary-color; }`, num)
 
-				result, err := transpiler.Execute(src)
+				result, err := transpiler.Execute(Args{Source: src})
 				c.Check(err, qt.IsNil)
 				c.Check(result.CSS, qt.Equals, fmt.Sprintf("div {\n  color: #%03d;\n}", num))
 				if c.Failed() {
@@ -73,8 +130,9 @@ div { color: $primary-color; }`, num)
 	wg.Wait()
 }
 
-func newTestTranspiler(c *qt.C) (*Transpiler, func()) {
-	transpiler, err := Start(Options{DartSassEmbeddedFilename: dartSassEmbeddedFilename})
+func newTestTranspiler(c *qt.C, opts Options) (*Transpiler, func()) {
+	opts.DartSassEmbeddedFilename = dartSassEmbeddedFilename
+	transpiler, err := Start(opts)
 	c.Assert(err, qt.IsNil)
 
 	return transpiler, func() {
@@ -82,7 +140,7 @@ func newTestTranspiler(c *qt.C) (*Transpiler, func()) {
 	}
 }
 
-func BenchmarkTranspile(b *testing.B) {
+func BenchmarkTranspiler(b *testing.B) {
 	type tester struct {
 		src        string
 		expect     string
@@ -92,7 +150,7 @@ func BenchmarkTranspile(b *testing.B) {
 
 	newTester := func(b *testing.B, opts Options) tester {
 		c := qt.New(b)
-		transpiler, clean := newTestTranspiler(c)
+		transpiler, clean := newTestTranspiler(c, Options{})
 
 		return tester{
 			transpiler: transpiler,
@@ -104,7 +162,7 @@ func BenchmarkTranspile(b *testing.B) {
 		defer t.clean()
 		b.ResetTimer()
 		for n := 0; n < b.N; n++ {
-			result, err := t.transpiler.Execute(t.src)
+			result, err := t.transpiler.Execute(Args{Source: t.src})
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -128,7 +186,7 @@ func BenchmarkTranspile(b *testing.B) {
 		defer t.clean()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				result, err := t.transpiler.Execute(t.src)
+				result, err := t.transpiler.Execute(Args{Source: t.src})
 				if err != nil {
 					b.Fatal(err)
 				}
