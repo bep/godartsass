@@ -1,3 +1,6 @@
+[![Tests on Linux, MacOS and Windows](https://github.com/bep/godartsass/workflows/Test/badge.svg)](https://github.com/bep/godartsass/actions?query=workflow%3ATest)
+
+
 ## Work in progress and not ready for use.
 
 This is a Go API backed by the native [Dart Sass Embedded](https://github.com/sass/dart-sass-embedded) executable.
