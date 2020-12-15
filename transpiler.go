@@ -37,6 +37,9 @@ const (
 // Dass Sass Embedded protocol via Stdin and Stdout.
 //
 // Closing the transpiler will shut down the process.
+//
+// Note that the Transpiler is thread safe, and the recommended way of using
+// this is to create one and use that for all the SCSS processing needed.
 func Start(opts Options) (*Transpiler, error) {
 	if err := opts.init(); err != nil {
 		return nil, err

@@ -205,6 +205,23 @@ func BenchmarkTranspiler(b *testing.B) {
 		runBench(b, t)
 	})
 
+	// This is the obviously much slower way of doing it.
+	b.Run("Start and Execute", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			t := newTester(b, Options{})
+			t.src = sassSample
+			t.expect = sassSampleTranspiled
+			result, err := t.transpiler.Execute(Args{Source: t.src})
+			if err != nil {
+				b.Fatal(err)
+			}
+			if result.CSS != t.expect {
+				b.Fatalf("Got: %q\n", result.CSS)
+			}
+			t.transpiler.Close()
+		}
+	})
+
 	b.Run("SCSS Parallel", func(b *testing.B) {
 		t := newTester(b, Options{})
 		t.src = sassSample
