@@ -2,7 +2,9 @@ package godartsass
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -100,6 +102,40 @@ body
 		})
 
 	}
+}
+
+func TestIncludePaths(t *testing.T) {
+	dir1, _ := ioutil.TempDir(os.TempDir(), "libsass-test-include-paths-dir1")
+	defer os.RemoveAll(dir1)
+	dir2, _ := ioutil.TempDir(os.TempDir(), "libsass-test-include-paths-dir2")
+	defer os.RemoveAll(dir2)
+
+	colors := filepath.Join(dir1, "_colors.scss")
+	content := filepath.Join(dir2, "_content.scss")
+
+	ioutil.WriteFile(colors, []byte(`
+$moo:       #f442d1 !default;
+`), 0644)
+
+	ioutil.WriteFile(content, []byte(`
+content { color: #ccc; }
+`), 0644)
+
+	c := qt.New(t)
+	src := `
+@import "colors";
+@import "content";
+div { p { color: $moo; } }`
+
+	transpiler, clean := newTestTranspiler(c, Options{
+		IncludePaths: []string{dir1, dir2},
+	})
+	defer clean()
+
+	result, err := transpiler.Execute(Args{Source: src, OutputStyle: OutputStyleCompressed})
+	c.Assert(err, qt.IsNil)
+	c.Assert(result.CSS, qt.Equals, "content{color:#ccc}div p{color:#f442d1}")
+
 }
 
 func TestTranspilerParallel(t *testing.T) {

@@ -2,6 +2,7 @@ package godartsass
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/bep/godartsass/internal/embeddedsass"
@@ -17,8 +18,13 @@ type Options struct {
 	// download it from here: https://github.com/sass/dart-sass-embedded/releases
 	DartSassEmbeddedFilename string
 
+	// Custom resolver to use to resolve imports.
 	ImportResolver ImportResolver
 
+	// File paths to use to resolve imports.
+	IncludePaths []string
+
+	// Ordered list starting with ImportResolver, then the IncludePaths.
 	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
 }
 
@@ -34,6 +40,14 @@ func (opts *Options) init() error {
 					ImporterId: importerID,
 				},
 			},
+		}
+	}
+
+	if opts.IncludePaths != nil {
+		for _, p := range opts.IncludePaths {
+			opts.sassImporters = append(opts.sassImporters, &embeddedsass.InboundMessage_CompileRequest_Importer{Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_Path{
+				Path: filepath.Clean(p),
+			}})
 		}
 	}
 
