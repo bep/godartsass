@@ -33,4 +33,11 @@ jobs:
         unzip sass_embedded-1.0.0-beta.5-windows-x64.zip;
         echo  "SASS_EMBEDDED_BINARY=$env:GITHUB_WORKSPACE/sass_embedded/dart-sass-embedded.bat" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf-8 -Append
     - name: Test
-      run: go test -race ./...
+      run: go test -race . -coverprofile=coverage.txt -covermode=atomic
+    - name: Upload coverage
+      if: success() && matrix.os == 'ubuntu-latest'
+      run: |
+        curl -s https://codecov.io/bash | bash
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      shell: bash
