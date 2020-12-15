@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -13,15 +14,24 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const (
+var (
 	defaultDartSassEmbeddedFilename = "dart-sass-embedded"
-	dummyImportSchema               = "godartimport:"
 )
+
+const (
+	dummyImportSchema = "godartimport:"
+)
+
+func init() {
+	if isWindows() {
+		defaultDartSassEmbeddedFilename += ".bat"
+	}
+}
 
 // Start creates an starts a new SCSS transpiler that communicates with the
 // Dass Sass Embedded protocol via Stdin and Stdout.
 //
-// Closing the transpiler will shut down the process and communication.
+// Closing the transpiler will shut down the process.
 func Start(opts Options) (*Transpiler, error) {
 	if opts.DartSassEmbeddedFilename == "" {
 		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
@@ -311,4 +321,8 @@ func (w debugReadWriteCloser) Write(p []byte) (n int, err error) {
 	n, err = w.ReadWriteCloser.Write(p)
 	fmt.Printf("Write=>%q<=\n", p)
 	return
+}
+
+func isWindows() bool {
+	return runtime.GOOS == "windows"
 }

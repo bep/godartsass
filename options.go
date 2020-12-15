@@ -10,7 +10,8 @@ import (
 type Options struct {
 	// The path to the Dart Sass wrapper binary, an absolute filename
 	// if not in $PATH.
-	// If this is not set, we will try 'dart-sass-embedded' in $PATH.
+	// If this is not set, we will try 'dart-sass-embedded'
+	// (or 'dart-sass-embedded.bat' on Windows) in the OS $PATH.
 	// There may be several ways to install this, one would be to
 	// download it from here: https://github.com/sass/dart-sass-embedded/releases
 	DartSassEmbeddedFilename string

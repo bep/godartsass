@@ -1,7 +1,6 @@
 package godartsass
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -91,17 +90,18 @@ type ioPipe struct {
 
 // Close closes the pipe's WriteCloser, ReadClosers, and process.
 func (iop ioPipe) Close() error {
-	err := iop.ReadCloser.Close()
+	var err error
 	if writeErr := iop.WriteCloser.Close(); writeErr != nil {
 		err = writeErr
 	}
+
+	err = iop.ReadCloser.Close()
+
 	if procErr := iop.closeProc(); procErr != nil {
 		err = procErr
 	}
 	return err
 }
-
-var errProcStopTimeout = errors.New("process killed after timeout waiting for process to stop")
 
 // procTimeout is the timeout to wait for a process to stop after being
 // signalled.  It is adjustable to keep tests fast.
@@ -112,16 +112,23 @@ var procTimeout = time.Second
 func (iop ioPipe) closeProc() error {
 	result := make(chan error, 1)
 	go func() { _, err := iop.proc.Wait(); result <- err }()
-	if err := iop.proc.Signal(os.Interrupt); err != nil {
-		return err
-	}
+
+	// Interrupt might not work on every os (e.g. Windows),
+	// so ignore the error.
+	// The Dart process exits on EOF so the process should have stopped
+	// already.
+	_ = iop.proc.Signal(os.Interrupt)
+
 	select {
 	case err := <-result:
 		return err
 	case <-time.After(procTimeout):
-		if err := iop.proc.Kill(); err != nil {
-			return fmt.Errorf("error killing process after timeout: %s", err)
+		if !isWindows() {
+			if err := iop.proc.Kill(); err != nil {
+				return fmt.Errorf("error killing process after timeout: %s", err)
+			}
+			return nil
 		}
-		return errProcStopTimeout
+		return nil
 	}
 }
