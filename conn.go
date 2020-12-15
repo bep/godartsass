@@ -54,7 +54,6 @@ func (c conn) Close() error {
 	}
 
 	return cmdErr
-
 }
 
 // dart-sass-embedded ends on itself on EOF, this is just to give it some

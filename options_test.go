@@ -15,7 +15,6 @@ func TestParseOutputStyle(t *testing.T) {
 	c.Assert(ParseOutputStyle("ComPressed"), qt.Equals, OutputStyleCompressed)
 	c.Assert(ParseOutputStyle("expanded"), qt.Equals, OutputStyleExpanded)
 	c.Assert(ParseOutputStyle("foo"), qt.Equals, OutputStyleNested)
-
 }
 
 func TestParseSourceSyntax(t *testing.T) {
@@ -27,5 +26,4 @@ func TestParseSourceSyntax(t *testing.T) {
 	c.Assert(ParseSourceSyntax("sass"), qt.Equals, SourceSyntaxSASS)
 	c.Assert(ParseSourceSyntax("indented"), qt.Equals, SourceSyntaxSASS)
 	c.Assert(ParseSourceSyntax("foo"), qt.Equals, SourceSyntaxSCSS)
-
 }

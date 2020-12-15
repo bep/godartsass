@@ -205,5 +205,4 @@ func getSassEmbeddedFilename() string {
 	}
 
 	return defaultDartSassEmbeddedFilename
-
 }

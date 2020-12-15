@@ -16,13 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var (
-	defaultDartSassEmbeddedFilename = "dart-sass-embedded"
-)
-
-const (
-	dummyImportSchema = "godartimport:"
-)
+var defaultDartSassEmbeddedFilename = "dart-sass-embedded"
 
 func init() {
 	if isWindows() {
@@ -30,13 +24,22 @@ func init() {
 	}
 }
 
+const (
+	// Dart Sass requires a schema of some sort, add this
+	// if the resolver does not.
+	dummyImportSchema = "godartimport:"
+
+	// There is only one, and this number is picked out of a hat.
+	importerID = 5679
+)
+
 // Start creates an starts a new SCSS transpiler that communicates with the
 // Dass Sass Embedded protocol via Stdin and Stdout.
 //
 // Closing the transpiler will shut down the process.
 func Start(opts Options) (*Transpiler, error) {
-	if opts.DartSassEmbeddedFilename == "" {
-		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
+	if err := opts.init(); err != nil {
+		return nil, err
 	}
 
 	cmd := exec.Command(opts.DartSassEmbeddedFilename)
@@ -62,43 +65,34 @@ func Start(opts Options) (*Transpiler, error) {
 	return t, nil
 }
 
-type Result struct {
-	CSS string
-}
-
-// ImportResolver allows custom import resolution.
-// CanonicalizeURL should create a canonical version of the given URL if it's
-// able to resolve it, else return an empty string.
-// Include scheme if relevant, e.g. 'file://foo/bar.scss'.
-// Importers   must ensure that the same canonical URL
-// always refers to the same stylesheet.
-//
-// Load loads the canonicalized URL's content.
-// TODO1 consider errors.
-type ImportResolver interface {
-	CanonicalizeURL(url string) string
-	Load(canonicalizedURL string) string
-}
-
+// Transpiler controls transpiling of SCSS into CSS.
 type Transpiler struct {
 	opts Options
 
+	// stdin/stdout of the Dart Sass protocol
 	conn io.ReadWriteCloser
 
+	// Protects the sending of the compile request.
 	reqMu sync.Mutex
 
-	mu      sync.Mutex
+	mu      sync.Mutex // Protects all below.
 	seq     uint32
 	pending map[uint32]*call
 }
 
-func (c *Transpiler) Close() error {
-	return c.conn.Close()
+// Result holds the result returned from Execute.
+type Result struct {
+	CSS string
 }
 
-const importerID = 5679
+// Close closes the stream to the embedded Dart Sass Protocol, which
+// shuts down.
+func (t *Transpiler) Close() error {
+	return t.conn.Close()
+}
 
-func (c *Transpiler) Execute(args Args) (Result, error) {
+// Execute transpiles the string Source given in Args into CSS.
+func (t *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
 
 	if err := args.init(); err != nil {
@@ -107,7 +101,7 @@ func (c *Transpiler) Execute(args Args) (Result, error) {
 
 	message := &embeddedsass.InboundMessage_CompileRequest_{
 		CompileRequest: &embeddedsass.InboundMessage_CompileRequest{
-			Importers: c.opts.createImporters(),
+			Importers: t.opts.sassImporters,
 			Style:     args.sassOutputStyle,
 			Input: &embeddedsass.InboundMessage_CompileRequest_String_{
 				String_: &embeddedsass.InboundMessage_CompileRequest_StringInput{
@@ -118,12 +112,11 @@ func (c *Transpiler) Execute(args Args) (Result, error) {
 		},
 	}
 
-	resp, err := c.invoke(
+	resp, err := t.invoke(
 		&embeddedsass.InboundMessage{
 			Message: message,
 		},
 	)
-
 	if err != nil {
 		return result, err
 	}
@@ -141,21 +134,6 @@ func (c *Transpiler) Execute(args Args) (Result, error) {
 	}
 
 	return result, nil
-}
-
-func (t *Transpiler) invoke(message *embeddedsass.InboundMessage) (*embeddedsass.OutboundMessage, error) {
-	request := &call{
-		Request: message,
-		Done:    make(chan *call, 1),
-	}
-
-	response := <-t.sendCall(request).Done
-
-	if response.Error != nil {
-		return nil, response.Error
-	}
-
-	return response.Response, nil
 }
 
 func (t *Transpiler) input() {
@@ -253,6 +231,21 @@ func (t *Transpiler) input() {
 		call.Error = err
 		call.done()
 	}
+}
+
+func (t *Transpiler) invoke(message *embeddedsass.InboundMessage) (*embeddedsass.OutboundMessage, error) {
+	request := &call{
+		Request: message,
+		Done:    make(chan *call, 1),
+	}
+
+	response := <-t.sendCall(request).Done
+
+	if response.Error != nil {
+		return nil, response.Error
+	}
+
+	return response.Response, nil
 }
 
 func (t *Transpiler) sendCall(call *call) *call {

@@ -7,6 +7,7 @@ import (
 	"github.com/bep/godartsass/internal/embeddedsass"
 )
 
+// Options configures a Transpiler.
 type Options struct {
 	// The path to the Dart Sass wrapper binary, an absolute filename
 	// if not in $PATH.
@@ -17,20 +18,40 @@ type Options struct {
 	DartSassEmbeddedFilename string
 
 	ImportResolver ImportResolver
+
+	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
 }
 
-func (opts Options) createImporters() []*embeddedsass.InboundMessage_CompileRequest_Importer {
-	if opts.ImportResolver == nil {
-		// No custom import resolver.
-		return nil
+func (opts *Options) init() error {
+	if opts.DartSassEmbeddedFilename == "" {
+		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
 	}
-	return []*embeddedsass.InboundMessage_CompileRequest_Importer{
-		&embeddedsass.InboundMessage_CompileRequest_Importer{
-			Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_ImporterId{
-				ImporterId: importerID,
+
+	if opts.ImportResolver != nil {
+		opts.sassImporters = []*embeddedsass.InboundMessage_CompileRequest_Importer{
+			{
+				Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_ImporterId{
+					ImporterId: importerID,
+				},
 			},
-		},
+		}
 	}
+
+	return nil
+}
+
+// ImportResolver allows custom import resolution.
+// CanonicalizeURL should create a canonical version of the given URL if it's
+// able to resolve it, else return an empty string.
+// Include scheme if relevant, e.g. 'file://foo/bar.scss'.
+// Importers   must ensure that the same canonical URL
+// always refers to the same stylesheet.
+//
+// Load loads the canonicalized URL's content.
+// TODO1 consider errors.
+type ImportResolver interface {
+	CanonicalizeURL(url string) string
+	Load(canonicalizedURL string) string
 }
 
 // Args holds the arguments to Execute.
