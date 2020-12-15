@@ -19,16 +19,8 @@ func newConn(cmd *exec.Cmd) (_ conn, err error) {
 	}()
 
 	out, err := cmd.StdoutPipe()
-	if err != nil {
-		return conn{}, err
-	}
-	defer func() {
-		if err != nil {
-			out.Close()
-		}
-	}()
 
-	return conn{out, in, cmd}, nil
+	return conn{out, in, cmd}, err
 }
 
 // conn wraps a ReadCloser, WriteCloser, and a Cmd.
@@ -40,7 +32,11 @@ type conn struct {
 
 // Start starts conn's Cmd.
 func (c conn) Start() error {
-	return c.cmd.Start()
+	err := c.cmd.Start()
+	if err != nil {
+		c.Close()
+	}
+	return err
 }
 
 // Close closes conn's WriteCloser, ReadClosers, and waits for the command to finish.
