@@ -1,3 +1,4 @@
+// Package godartsass provides a Go API for the Dass Sass Embedded protocol.
 package godartsass
 
 import (
@@ -6,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -37,14 +39,21 @@ func Start(opts Options) (*Transpiler, error) {
 		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
 	}
 
-	pipe, err := start(makeCommand(os.Stderr, opts.DartSassEmbeddedFilename, []string{}))
+	cmd := exec.Command(opts.DartSassEmbeddedFilename)
+	cmd.Stderr = os.Stderr
+
+	conn, err := newConn(cmd)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := conn.Start(); err != nil {
 		return nil, err
 	}
 
 	t := &Transpiler{
 		opts:    opts,
-		conn:    pipe,
+		conn:    conn,
 		pending: make(map[uint32]*call),
 	}
 
