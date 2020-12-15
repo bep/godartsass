@@ -64,8 +64,6 @@ func TestTranspilerVariants(t *testing.T) {
 		expect interface{}
 	}{
 		{"Output style compressed", Options{}, Args{Source: "div { color: #ccc; }", OutputStyle: OutputStyleCompressed}, "div{color:#ccc}"},
-		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
-		{"Import not found", Options{}, Args{Source: "@import \"foo\""}, false},
 		{"Sass syntax", Options{}, Args{
 			Source: `$font-stack:    Helvetica, sans-serif
 $primary-color: #333
@@ -78,7 +76,12 @@ body
 			SourceSyntax: SourceSyntaxSASS,
 		}, "body{font:100% Helvetica,sans-serif;color:#333}"},
 		{"Import resolver", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }"}, "div p {\n  color: #ffff;\n}"},
-		//{"Precision", Options{Precision: 3}, "div { width: percentage(1 / 3); }", "div {\n  width: 33.333%; }\n"},
+
+		// Error cases
+		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
+		{"Import not found", Options{}, Args{Source: "@import \"foo\""}, false},
+		{"Invalid OutputStyle", Options{}, Args{Source: "a", OutputStyle: "asdf"}, false},
+		{"Invalid SourceSyntax", Options{}, Args{Source: "a", SourceSyntax: "asdf"}, false},
 	} {
 
 		test := test

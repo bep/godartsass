@@ -79,13 +79,13 @@ type (
 
 const (
 	OutputStyleNested     OutputStyle = "NESTED"
-	OutputStyleExpanded               = "EXPANDED"
-	OutputStyleCompact                = "COMPACT"
-	OutputStyleCompressed             = "COMPRESSED"
+	OutputStyleExpanded   OutputStyle = "EXPANDED"
+	OutputStyleCompact    OutputStyle = "COMPACT"
+	OutputStyleCompressed OutputStyle = "COMPRESSED"
 
 	SourceSyntaxSCSS SourceSyntax = "SCSS"
-	SourceSyntaxSASS              = "INDENTED"
-	SourceSyntaxCSS               = "CSS"
+	SourceSyntaxSASS SourceSyntax = "INDENTED"
+	SourceSyntaxCSS  SourceSyntax = "CSS"
 )
 
 // ParseOutputStyle will convert s into OutputStyle.
@@ -111,7 +111,7 @@ func ParseSourceSyntax(s string) SourceSyntax {
 	switch SourceSyntax(strings.ToUpper(s)) {
 	case SourceSyntaxSCSS:
 		return SourceSyntaxSCSS
-	case SourceSyntaxSASS:
+	case SourceSyntaxSASS, "SASS":
 		return SourceSyntaxSASS
 	case SourceSyntaxCSS:
 		return SourceSyntaxCSS

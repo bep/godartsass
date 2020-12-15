@@ -43,9 +43,8 @@ func Start(opts Options) (*Transpiler, error) {
 	}
 
 	t := &Transpiler{
-		opts: opts,
-		conn: pipe,
-		//conn:    debugReadWriteCloser{pipe},
+		opts:    opts,
+		conn:    pipe,
 		pending: make(map[uint32]*call),
 	}
 
@@ -305,22 +304,6 @@ func (call *call) done() {
 	case call.Done <- call:
 	default:
 	}
-}
-
-type debugReadWriteCloser struct {
-	io.ReadWriteCloser
-}
-
-func (w debugReadWriteCloser) Read(p []byte) (n int, err error) {
-	n, err = w.ReadWriteCloser.Read(p)
-	fmt.Printf("READ=>%q<=\n", p)
-	return
-}
-
-func (w debugReadWriteCloser) Write(p []byte) (n int, err error) {
-	n, err = w.ReadWriteCloser.Write(p)
-	fmt.Printf("Write=>%q<=\n", p)
-	return
 }
 
 func isWindows() bool {
