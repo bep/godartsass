@@ -33,19 +33,24 @@ const (
 	importerID = 5679
 )
 
-// Start creates an starts a new SCSS transpiler that communicates with the
+// Start creates and starts a new SCSS transpiler that communicates with the
 // Dass Sass Embedded protocol via Stdin and Stdout.
 //
 // Closing the transpiler will shut down the process.
 //
 // Note that the Transpiler is thread safe, and the recommended way of using
 // this is to create one and use that for all the SCSS processing needed.
-func Start(opts Options) (*Transpiler, error) {
+func Start(options ...TranspilerOption) (*Transpiler, error) {
+	opts := transpilerOptions{}
+	for _, o := range options {
+		o.apply(&opts)
+	}
+
 	if err := opts.init(); err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command(opts.DartSassEmbeddedFilename)
+	cmd := exec.Command(opts.dartSassEmbeddedExecPath)
 	cmd.Stderr = os.Stderr
 
 	conn, err := newConn(cmd)
@@ -70,7 +75,7 @@ func Start(opts Options) (*Transpiler, error) {
 
 // Transpiler controls transpiling of SCSS into CSS.
 type Transpiler struct {
-	opts Options
+	opts transpilerOptions
 
 	// stdin/stdout of the Dart Sass protocol
 	conn io.ReadWriteCloser
@@ -95,8 +100,13 @@ func (t *Transpiler) Close() error {
 }
 
 // Execute transpiles the string Source given in Args into CSS.
-func (t *Transpiler) Execute(args Args) (Result, error) {
+func (t *Transpiler) Execute(arguments ...ExecuteArg) (Result, error) {
 	var result Result
+
+	args := executeArgs{}
+	for _, o := range arguments {
+		o.apply(&args)
+	}
 
 	if err := args.init(); err != nil {
 		return result, err
@@ -109,7 +119,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 			Input: &embeddedsass.InboundMessage_CompileRequest_String_{
 				String_: &embeddedsass.InboundMessage_CompileRequest_StringInput{
 					Syntax: args.sassSourceSyntax,
-					Source: args.Source,
+					Source: args.source,
 				},
 			},
 		},
@@ -180,7 +190,7 @@ func (t *Transpiler) input() {
 			call.done()
 		case *embeddedsass.OutboundMessage_CanonicalizeRequest_:
 			var url *embeddedsass.InboundMessage_CanonicalizeResponse_Url
-			if resolved := t.opts.ImportResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl()); resolved != "" {
+			if resolved := t.opts.importResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl()); resolved != "" {
 				if !strings.Contains(resolved, ":") {
 					// Add a dummy schema.
 					resolved = dummyImportSchema + ":" + resolved
@@ -209,7 +219,7 @@ func (t *Transpiler) input() {
 					Id: c.ImportRequest.GetId(),
 					Result: &embeddedsass.InboundMessage_ImportResponse_Success{
 						Success: &embeddedsass.InboundMessage_ImportResponse_ImportSuccess{
-							Contents: t.opts.ImportResolver.Load(strings.TrimPrefix(c.ImportRequest.GetUrl(), dummyImportSchema)),
+							Contents: t.opts.importResolver.Load(strings.TrimPrefix(c.ImportRequest.GetUrl(), dummyImportSchema)),
 						},
 					},
 				},

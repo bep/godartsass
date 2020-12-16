@@ -8,32 +8,33 @@ import (
 	"github.com/bep/godartsass/internal/embeddedsass"
 )
 
-// Options configures a Transpiler.
-type Options struct {
+// transpilerOptions configures a Transpiler.  transpilerOptions are set by the
+// TranspilerOption values passed to Start.
+type transpilerOptions struct {
 	// The path to the Dart Sass wrapper binary, an absolute filename
 	// if not in $PATH.
 	// If this is not set, we will try 'dart-sass-embedded'
 	// (or 'dart-sass-embedded.bat' on Windows) in the OS $PATH.
 	// There may be several ways to install this, one would be to
 	// download it from here: https://github.com/sass/dart-sass-embedded/releases
-	DartSassEmbeddedFilename string
+	dartSassEmbeddedExecPath string
 
 	// Custom resolver to use to resolve imports.
-	ImportResolver ImportResolver
+	importResolver ImportResolver
 
 	// File paths to use to resolve imports.
-	IncludePaths []string
+	includePaths []string
 
 	// Ordered list starting with ImportResolver, then the IncludePaths.
 	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
 }
 
-func (opts *Options) init() error {
-	if opts.DartSassEmbeddedFilename == "" {
-		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
+func (opts *transpilerOptions) init() error {
+	if opts.dartSassEmbeddedExecPath == "" {
+		opts.dartSassEmbeddedExecPath = defaultDartSassEmbeddedFilename
 	}
 
-	if opts.ImportResolver != nil {
+	if opts.importResolver != nil {
 		opts.sassImporters = []*embeddedsass.InboundMessage_CompileRequest_Importer{
 			{
 				Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_ImporterId{
@@ -43,8 +44,8 @@ func (opts *Options) init() error {
 		}
 	}
 
-	if opts.IncludePaths != nil {
-		for _, p := range opts.IncludePaths {
+	if opts.includePaths != nil {
+		for _, p := range opts.includePaths {
 			opts.sassImporters = append(opts.sassImporters, &embeddedsass.InboundMessage_CompileRequest_Importer{Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_Path{
 				Path: filepath.Clean(p),
 			}})
@@ -52,6 +53,51 @@ func (opts *Options) init() error {
 	}
 
 	return nil
+}
+
+// TranspilerOption configures how the transpiler works.
+type TranspilerOption interface {
+	apply(*transpilerOptions)
+}
+
+// funcTranspilerOption wraps a function that modifies transpilerOptions into an
+// implementation of the TranspilerOption interface.
+type funcTranspilerOption struct {
+	f func(*transpilerOptions)
+}
+
+func (f *funcTranspilerOption) apply(o *transpilerOptions) {
+	f.f(o)
+}
+
+func newFuncTranspilerOption(f func(*transpilerOptions)) *funcTranspilerOption {
+	return &funcTranspilerOption{
+		f: f,
+	}
+}
+
+// WithDartSassEmbeddedExecPath returns a TranspilerOption that sets the path to
+// the dart-sass-embedded executable.
+func WithDartSassEmbeddedExecPath(path string) TranspilerOption {
+	return newFuncTranspilerOption(func(o *transpilerOptions) {
+		o.dartSassEmbeddedExecPath = path
+	})
+}
+
+// WithIncludePaths returns a TranspilerOption that sets the file paths used to
+// resolve imports.
+func WithIncludePaths(paths ...string) TranspilerOption {
+	return newFuncTranspilerOption(func(o *transpilerOptions) {
+		o.includePaths = paths[:]
+	})
+}
+
+// WithImportResolver returns a TranspilerOption that sets a custom import path
+// resolver.
+func WithImportResolver(resolver ImportResolver) TranspilerOption {
+	return newFuncTranspilerOption(func(o *transpilerOptions) {
+		o.importResolver = resolver
+	})
 }
 
 // ImportResolver allows custom import resolution.
@@ -68,38 +114,82 @@ type ImportResolver interface {
 	Load(canonicalizedURL string) string
 }
 
-// Args holds the arguments to Execute.
-type Args struct {
+// ExecuteArg sets arguments for Transpiler.Execute.
+type ExecuteArg interface {
+	apply(*executeArgs)
+}
+
+// funcExecuteArg wraps a function that modifies executeArgs into an
+// implementation of the ExecuteArg interface.
+type funcExecuteArg struct {
+	f func(*executeArgs)
+}
+
+func (f *funcExecuteArg) apply(o *executeArgs) {
+	f.f(o)
+}
+
+func newFuncExecuteArg(f func(*executeArgs)) *funcExecuteArg {
+	return &funcExecuteArg{
+		f: f,
+	}
+}
+
+// WithOutputStyle returns an ExecuteArg that sets the output style for a given
+// execution.
+func WithOutputStyle(style OutputStyle) ExecuteArg {
+	return newFuncExecuteArg(func(o *executeArgs) {
+		o.outputStyle = style
+	})
+}
+
+// WithSource returns an ExecuteArg that sets the source on which the execution
+// should operate.
+func WithSource(source string) ExecuteArg {
+	return newFuncExecuteArg(func(o *executeArgs) {
+		o.source = source
+	})
+}
+
+// WithSourceSyntax returns an ExecuteArg that specifies the source syntax.
+func WithSourceSyntax(syntax SourceSyntax) ExecuteArg {
+	return newFuncExecuteArg(func(o *executeArgs) {
+		o.sourceSyntax = syntax
+	})
+}
+
+// executeArgs holds the arguments to Execute.
+type executeArgs struct {
 	// The input source.
-	Source string
+	source string
 
 	// Defaults is SCSS.
-	SourceSyntax SourceSyntax
+	sourceSyntax SourceSyntax
 
 	// Default is NESTED.
-	OutputStyle OutputStyle
+	outputStyle OutputStyle
 
 	sassOutputStyle  embeddedsass.InboundMessage_CompileRequest_OutputStyle
 	sassSourceSyntax embeddedsass.InboundMessage_Syntax
 }
 
-func (args *Args) init() error {
-	if args.OutputStyle == "" {
-		args.OutputStyle = OutputStyleNested
+func (args *executeArgs) init() error {
+	if args.outputStyle == "" {
+		args.outputStyle = OutputStyleNested
 	}
-	if args.SourceSyntax == "" {
-		args.SourceSyntax = SourceSyntaxSCSS
+	if args.sourceSyntax == "" {
+		args.sourceSyntax = SourceSyntaxSCSS
 	}
 
-	v, ok := embeddedsass.InboundMessage_CompileRequest_OutputStyle_value[string(args.OutputStyle)]
+	v, ok := embeddedsass.InboundMessage_CompileRequest_OutputStyle_value[string(args.outputStyle)]
 	if !ok {
-		return fmt.Errorf("invalid OutputStyle %q", args.OutputStyle)
+		return fmt.Errorf("invalid OutputStyle %q", args.outputStyle)
 	}
 	args.sassOutputStyle = embeddedsass.InboundMessage_CompileRequest_OutputStyle(v)
 
-	v, ok = embeddedsass.InboundMessage_Syntax_value[string(args.SourceSyntax)]
+	v, ok = embeddedsass.InboundMessage_Syntax_value[string(args.sourceSyntax)]
 	if !ok {
-		return fmt.Errorf("invalid SourceSyntax %q", args.SourceSyntax)
+		return fmt.Errorf("invalid SourceSyntax %q", args.sourceSyntax)
 	}
 
 	args.sassSourceSyntax = embeddedsass.InboundMessage_Syntax(v)
@@ -117,7 +207,9 @@ const (
 	OutputStyleExpanded   OutputStyle = "EXPANDED"
 	OutputStyleCompact    OutputStyle = "COMPACT"
 	OutputStyleCompressed OutputStyle = "COMPRESSED"
+)
 
+const (
 	SourceSyntaxSCSS SourceSyntax = "SCSS"
 	SourceSyntaxSASS SourceSyntax = "INDENTED"
 	SourceSyntaxCSS  SourceSyntax = "CSS"
