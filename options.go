@@ -43,7 +43,6 @@ func (opts *Options) init() error {
 // always refers to the same stylesheet.
 //
 // Load loads the canonicalized URL's content.
-// TODO1 consider errors.
 type ImportResolver interface {
 	CanonicalizeURL(url string) string
 	Load(canonicalizedURL string) string

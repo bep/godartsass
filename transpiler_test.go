@@ -42,7 +42,7 @@ func (t testImportResolver) CanonicalizeURL(url string) string {
 		return ""
 	}
 
-	return filepath.Clean("file:/myproject/scss/" + url + "_myfile.scss")
+	return "file:/myproject/scss/" + url + "_myfile.scss"
 }
 
 func (t testImportResolver) Load(url string) string {

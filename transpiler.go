@@ -3,6 +3,7 @@ package godartsass
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -88,6 +89,27 @@ type Result struct {
 	SourceMap string
 }
 
+// SassError is the error returned from Execute on compile errors.
+type SassError struct {
+	Message string `json:"message"`
+	Span    struct {
+		Text  string `json:"text"`
+		Start struct {
+			Offset int `json:"offset"`
+			Column int `json:"column"`
+		} `json:"start"`
+		End struct {
+			Offset int `json:"offset"`
+			Column int `json:"column"`
+		} `json:"end"`
+		Context string `json:"context"`
+	} `json:"span"`
+}
+
+func (e SassError) Error() string {
+	return e.Message
+}
+
 // Close closes the stream to the embedded Dart Sass Protocol, which
 // shuts down.
 func (t *Transpiler) Close() error {
@@ -95,6 +117,8 @@ func (t *Transpiler) Close() error {
 }
 
 // Execute transpiles the string Source given in Args into CSS.
+// If Dart Sass resturns a "compile failure", the error returned will be
+// of type SassError..
 func (t *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
 
@@ -133,8 +157,16 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 		result.CSS = resp.Success.Css
 		result.SourceMap = resp.Success.SourceMap
 	case *embeddedsass.OutboundMessage_CompileResponse_Failure:
-		// TODO1 create a better error: offset, context etc.
-		return result, fmt.Errorf("compile failed: %s", resp.Failure.GetMessage())
+		asJson, err := json.Marshal(resp.Failure)
+		if err != nil {
+			return result, err
+		}
+		var sassErr SassError
+		err = json.Unmarshal(asJson, &sassErr)
+		if err != nil {
+			return result, err
+		}
+		return result, sassErr
 	default:
 		return result, fmt.Errorf("unsupported response type: %T", resp)
 	}
