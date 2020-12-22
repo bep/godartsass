@@ -20,35 +20,11 @@ type Options struct {
 
 	// Custom resolver to use to resolve imports.
 	ImportResolver ImportResolver
-
-	// File paths to use to resolve imports.
-	IncludePaths []string
-
-	// Ordered list starting with ImportResolver, then the IncludePaths.
-	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
 }
 
 func (opts *Options) init() error {
 	if opts.DartSassEmbeddedFilename == "" {
 		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
-	}
-
-	if opts.ImportResolver != nil {
-		opts.sassImporters = []*embeddedsass.InboundMessage_CompileRequest_Importer{
-			{
-				Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_ImporterId{
-					ImporterId: importerID,
-				},
-			},
-		}
-	}
-
-	if opts.IncludePaths != nil {
-		for _, p := range opts.IncludePaths {
-			opts.sassImporters = append(opts.sassImporters, &embeddedsass.InboundMessage_CompileRequest_Importer{Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_Path{
-				Path: filepath.Clean(p),
-			}})
-		}
 	}
 
 	return nil
@@ -79,11 +55,17 @@ type Args struct {
 	// Default is NESTED.
 	OutputStyle OutputStyle
 
+	// Additional file paths to uses to resolve imports.
+	IncludePaths []string
+
 	sassOutputStyle  embeddedsass.InboundMessage_CompileRequest_OutputStyle
 	sassSourceSyntax embeddedsass.InboundMessage_Syntax
+
+	// Ordered list starting with options.ImportResolver, then IncludePaths.
+	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
 }
 
-func (args *Args) init() error {
+func (args *Args) init(opts Options) error {
 	if args.OutputStyle == "" {
 		args.OutputStyle = OutputStyleNested
 	}
@@ -103,6 +85,24 @@ func (args *Args) init() error {
 	}
 
 	args.sassSourceSyntax = embeddedsass.InboundMessage_Syntax(v)
+
+	if opts.ImportResolver != nil {
+		args.sassImporters = []*embeddedsass.InboundMessage_CompileRequest_Importer{
+			{
+				Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_ImporterId{
+					ImporterId: importerID,
+				},
+			},
+		}
+	}
+
+	if args.IncludePaths != nil {
+		for _, p := range args.IncludePaths {
+			args.sassImporters = append(args.sassImporters, &embeddedsass.InboundMessage_CompileRequest_Importer{Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_Path{
+				Path: filepath.Clean(p),
+			}})
+		}
+	}
 
 	return nil
 }

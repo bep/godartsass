@@ -130,12 +130,16 @@ content { color: #ccc; }
 @import "content";
 div { p { color: $moo; } }`
 
-	transpiler, clean := newTestTranspiler(c, Options{
-		IncludePaths: []string{dir1, dir2},
-	})
+	transpiler, clean := newTestTranspiler(c, Options{})
 	defer clean()
 
-	result, err := transpiler.Execute(Args{Source: src, OutputStyle: OutputStyleCompressed})
+	result, err := transpiler.Execute(
+		Args{
+			Source:       src,
+			OutputStyle:  OutputStyleCompressed,
+			IncludePaths: []string{dir1, dir2},
+		},
+	)
 	c.Assert(err, qt.IsNil)
 	c.Assert(result.CSS, qt.Equals, "content{color:#ccc}div p{color:#f442d1}")
 
@@ -256,7 +260,7 @@ func newTestTranspiler(c *qt.C, opts Options) (*Transpiler, func()) {
 
 func getSassEmbeddedFilename() string {
 	// https://github.com/sass/dart-sass-embedded/releases
-	if filename := os.Getenv("SASS_EMBEDDED_BINARY"); filename != "" {
+	if filename := os.Getenv("DART_SASS_EMBEDDED_BINARY"); filename != "" {
 		return filename
 	}
 

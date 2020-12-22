@@ -100,13 +100,13 @@ func (t *Transpiler) Close() error {
 func (t *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
 
-	if err := args.init(); err != nil {
+	if err := args.init(t.opts); err != nil {
 		return result, err
 	}
 
 	message := &embeddedsass.InboundMessage_CompileRequest_{
 		CompileRequest: &embeddedsass.InboundMessage_CompileRequest{
-			Importers: t.opts.sassImporters,
+			Importers: args.sassImporters,
 			Style:     args.sassOutputStyle,
 			Input: &embeddedsass.InboundMessage_CompileRequest_String_{
 				String_: &embeddedsass.InboundMessage_CompileRequest_StringInput{
