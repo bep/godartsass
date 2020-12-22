@@ -3,8 +3,6 @@
 [![codecov](https://codecov.io/gh/bep/godartsass/branch/main/graph/badge.svg?token=OWZ9RCAYWO)](https://codecov.io/gh/bep/godartsass)
 [![GoDoc](https://godoc.org/github.com/bep/godartsass?status.svg)](https://godoc.org/github.com/bep/godartsass)
 
-## Work in progress and not ready for use.
-
 This is a Go API backed by the native [Dart Sass Embedded](https://github.com/sass/dart-sass-embedded) executable.
 
 The primary motivation for this project is to provide `SCSS` support to [Hugo](https://gohugo.io/). I welcome PRs with bug fixes. I will also consider adding functionality, but please raise an issue discussing it first.
