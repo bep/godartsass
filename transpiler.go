@@ -12,17 +12,13 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cli/safeexec"
+
 	"github.com/bep/godartsass/internal/embeddedsass"
 	"google.golang.org/protobuf/proto"
 )
 
 var defaultDartSassEmbeddedFilename = "dart-sass-embedded"
-
-func init() {
-	if isWindows() {
-		defaultDartSassEmbeddedFilename += ".bat"
-	}
-}
 
 const (
 	// Dart Sass requires a schema of some sort, add this
@@ -45,7 +41,13 @@ func Start(opts Options) (*Transpiler, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command(opts.DartSassEmbeddedFilename)
+	// See https://github.com/golang/go/issues/38736
+	bin, err := safeexec.LookPath(opts.DartSassEmbeddedFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(bin)
 	cmd.Stderr = os.Stderr
 
 	conn, err := newConn(cmd)

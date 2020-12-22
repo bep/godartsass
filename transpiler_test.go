@@ -95,6 +95,9 @@ body
 			result, err := transpiler.Execute(test.args)
 			if shouldFail {
 				c.Assert(err, qt.Not(qt.IsNil))
+				// Verify that the communication is still up and running.
+				_, err2 := transpiler.Execute(test.args)
+				c.Assert(err2.Error(), qt.Equals, err.Error())
 			} else {
 				c.Assert(err, qt.IsNil)
 				c.Assert(result.CSS, qt.Equals, test.expect)
