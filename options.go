@@ -31,9 +31,14 @@ func (opts *Options) init() error {
 }
 
 // ImportResolver allows custom import resolution.
+//
 // CanonicalizeURL should create a canonical version of the given URL if it's
 // able to resolve it, else return an empty string.
-// Include scheme if relevant, e.g. 'file://foo/bar.scss'.
+//
+// A canonicalized URL should include a scheme, e.g. 'file:///foo/bar.scss',
+// if applicable, see:
+//     https://en.wikipedia.org/wiki/File_URI_scheme
+//
 // Importers   must ensure that the same canonical URL
 // always refers to the same stylesheet.
 //
@@ -48,6 +53,12 @@ type ImportResolver interface {
 type Args struct {
 	// The input source.
 	Source string
+
+	// The URL of the Source.
+	// Leave empty if it's unknown.
+	// Must include a scheme, e.g. 'file:///myproject/main.scss'
+	// See https://en.wikipedia.org/wiki/File_URI_scheme
+	URL string
 
 	// Defaults is SCSS.
 	SourceSyntax SourceSyntax

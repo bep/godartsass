@@ -1,6 +1,7 @@
 package godartsass
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -41,7 +42,7 @@ func (t testImportResolver) CanonicalizeURL(url string) string {
 		return ""
 	}
 
-	return url
+	return filepath.Clean("file:/myproject/scss/" + url + "_myfile.scss")
 }
 
 func (t testImportResolver) Load(url string) string {
@@ -66,7 +67,7 @@ func TestTranspilerVariants(t *testing.T) {
 		expect interface{}
 	}{
 		{"Output style compressed", Options{}, Args{Source: "div { color: #ccc; }", OutputStyle: OutputStyleCompressed}, Result{CSS: "div{color:#ccc}"}},
-		{"Enable Source Map", Options{}, Args{Source: "div{color:blue;}", OutputStyle: OutputStyleCompressed, EnableSourceMap: true}, Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,div%7Bcolor:blue;%7D\"],\"names\":[],\"mappings\":\"AAAA\"}"}},
+		{"Enable Source Map", Options{}, Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: OutputStyleCompressed, EnableSourceMap: true}, Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\"}"}},
 		{"Sass syntax", Options{}, Args{
 			Source: `$font-stack:    Helvetica, sans-serif
 $primary-color: #333
@@ -79,6 +80,7 @@ body
 			SourceSyntax: SourceSyntaxSASS,
 		}, Result{CSS: "body{font:100% Helvetica,sans-serif;color:#333}"}},
 		{"Import resolver", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }"}, Result{CSS: "div p {\n  color: #ffff;\n}"}},
+		{"Import resolver with source map", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true}, Result{CSS: "div p {\n  color: #ffff;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///myproject/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
 
 		// Error cases
 		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
@@ -102,7 +104,9 @@ body
 			} else {
 				expectedResult := test.expect.(Result)
 				c.Assert(err, qt.IsNil)
+				//printJSON(result.SourceMap)
 				c.Assert(result, qt.Equals, expectedResult)
+
 			}
 		})
 
@@ -250,6 +254,16 @@ func BenchmarkTranspiler(b *testing.B) {
 	})
 }
 
+func TestHasSchema(t *testing.T) {
+	c := qt.New(t)
+
+	c.Assert(hasSchema("file:foo"), qt.Equals, true)
+	c.Assert(hasSchema("http:foo"), qt.Equals, true)
+	c.Assert(hasSchema("123:foo"), qt.Equals, false)
+	c.Assert(hasSchema("foo"), qt.Equals, false)
+
+}
+
 func newTestTranspiler(c *qt.C, opts Options) (*Transpiler, func()) {
 	opts.DartSassEmbeddedFilename = getSassEmbeddedFilename()
 	transpiler, err := Start(opts)
@@ -267,4 +281,13 @@ func getSassEmbeddedFilename() string {
 	}
 
 	return defaultDartSassEmbeddedFilename
+}
+
+// used for debugging
+func printJSON(s string) {
+	m := make(map[string]interface{})
+	json.Unmarshal([]byte(s), &m)
+	b, _ := json.MarshalIndent(m, "", "  ")
+	fmt.Printf("%s", b)
+
 }

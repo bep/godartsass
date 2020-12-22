@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/cli/safeexec"
@@ -21,9 +21,6 @@ import (
 var defaultDartSassEmbeddedFilename = "dart-sass-embedded"
 
 const (
-	// Dart Sass requires a schema of some sort, add this
-	// if the resolver does not.
-	dummyImportSchema = "godartimport:"
 
 	// There is only one, and this number is picked out of a hat.
 	importerID = 5679
@@ -113,6 +110,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 				String_: &embeddedsass.InboundMessage_CompileRequest_StringInput{
 					Syntax: args.sassSourceSyntax,
 					Source: args.Source,
+					Url:    args.URL,
 				},
 			},
 			SourceMap: args.EnableSourceMap,
@@ -186,10 +184,6 @@ func (t *Transpiler) input() {
 		case *embeddedsass.OutboundMessage_CanonicalizeRequest_:
 			var url *embeddedsass.InboundMessage_CanonicalizeResponse_Url
 			if resolved := t.opts.ImportResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl()); resolved != "" {
-				if !strings.Contains(resolved, ":") {
-					// Add a dummy schema.
-					resolved = dummyImportSchema + ":" + resolved
-				}
 				url = &embeddedsass.InboundMessage_CanonicalizeResponse_Url{
 					Url: resolved,
 				}
@@ -209,12 +203,24 @@ func (t *Transpiler) input() {
 			)
 
 		case *embeddedsass.OutboundMessage_ImportRequest_:
+			url := c.ImportRequest.GetUrl()
+			var sourceMapURL string
+			// Dart Sass expect a browser-accessible URL or an empty string.
+			// If no URL is supplied, a `data:` URL wil be generated
+			// automatically from `contents`
+			// The hasSchema function may be too coarse grained, but we
+			// need to test this in real life situations.
+			if hasSchema(url) {
+				sourceMapURL = url
+			}
+
 			response := &embeddedsass.InboundMessage_ImportResponse_{
 				ImportResponse: &embeddedsass.InboundMessage_ImportResponse{
 					Id: c.ImportRequest.GetId(),
 					Result: &embeddedsass.InboundMessage_ImportResponse_Success{
 						Success: &embeddedsass.InboundMessage_ImportResponse_ImportSuccess{
-							Contents: t.opts.ImportResolver.Load(strings.TrimPrefix(c.ImportRequest.GetUrl(), dummyImportSchema)),
+							Contents:     t.opts.ImportResolver.Load(url),
+							SourceMapUrl: sourceMapURL,
 						},
 					},
 				},
@@ -318,4 +324,10 @@ func (call *call) done() {
 
 func isWindows() bool {
 	return runtime.GOOS == "windows"
+}
+
+var hasSchemaRe = regexp.MustCompile("^[a-z]*:")
+
+func hasSchema(s string) bool {
+	return hasSchemaRe.MatchString(s)
 }
