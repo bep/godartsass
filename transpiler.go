@@ -87,7 +87,8 @@ type Transpiler struct {
 
 // Result holds the result returned from Execute.
 type Result struct {
-	CSS string
+	CSS       string
+	SourceMap string
 }
 
 // Close closes the stream to the embedded Dart Sass Protocol, which
@@ -114,6 +115,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 					Source: args.Source,
 				},
 			},
+			SourceMap: args.EnableSourceMap,
 		},
 	}
 
@@ -131,6 +133,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 	switch resp := csp.CompileResponse.Result.(type) {
 	case *embeddedsass.OutboundMessage_CompileResponse_Success:
 		result.CSS = resp.Success.Css
+		result.SourceMap = resp.Success.SourceMap
 	case *embeddedsass.OutboundMessage_CompileResponse_Failure:
 		// TODO1 create a better error: offset, context etc.
 		return result, fmt.Errorf("compile failed: %s", resp.Failure.GetMessage())

@@ -65,7 +65,8 @@ func TestTranspilerVariants(t *testing.T) {
 		args   Args
 		expect interface{}
 	}{
-		{"Output style compressed", Options{}, Args{Source: "div { color: #ccc; }", OutputStyle: OutputStyleCompressed}, "div{color:#ccc}"},
+		{"Output style compressed", Options{}, Args{Source: "div { color: #ccc; }", OutputStyle: OutputStyleCompressed}, Result{CSS: "div{color:#ccc}"}},
+		{"Enable Source Map", Options{}, Args{Source: "div{color:blue;}", OutputStyle: OutputStyleCompressed, EnableSourceMap: true}, Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,div%7Bcolor:blue;%7D\"],\"names\":[],\"mappings\":\"AAAA\"}"}},
 		{"Sass syntax", Options{}, Args{
 			Source: `$font-stack:    Helvetica, sans-serif
 $primary-color: #333
@@ -76,8 +77,8 @@ body
 `,
 			OutputStyle:  OutputStyleCompressed,
 			SourceSyntax: SourceSyntaxSASS,
-		}, "body{font:100% Helvetica,sans-serif;color:#333}"},
-		{"Import resolver", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }"}, "div p {\n  color: #ffff;\n}"},
+		}, Result{CSS: "body{font:100% Helvetica,sans-serif;color:#333}"}},
+		{"Import resolver", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }"}, Result{CSS: "div p {\n  color: #ffff;\n}"}},
 
 		// Error cases
 		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
@@ -99,8 +100,9 @@ body
 				_, err2 := transpiler.Execute(test.args)
 				c.Assert(err2.Error(), qt.Equals, err.Error())
 			} else {
+				expectedResult := test.expect.(Result)
 				c.Assert(err, qt.IsNil)
-				c.Assert(result.CSS, qt.Equals, test.expect)
+				c.Assert(result, qt.Equals, expectedResult)
 			}
 		})
 

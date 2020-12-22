@@ -55,6 +55,9 @@ type Args struct {
 	// Default is NESTED.
 	OutputStyle OutputStyle
 
+	// If enabled, a sourcemap will be generated and returned in Result.
+	EnableSourceMap bool
+
 	// Additional file paths to uses to resolve imports.
 	IncludePaths []string
 
