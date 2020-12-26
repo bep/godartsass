@@ -21,12 +21,6 @@ import (
 
 var defaultDartSassEmbeddedFilename = "dart-sass-embedded"
 
-const (
-
-	// There is only one, and this number is picked out of a hat.
-	importerID = 5679
-)
-
 // Start creates an starts a new SCSS transpiler that communicates with the
 // Dass Sass Embedded protocol via Stdin and Stdout.
 //
@@ -75,8 +69,8 @@ type Transpiler struct {
 	// stdin/stdout of the Dart Sass protocol
 	conn io.ReadWriteCloser
 
-	// Protects the sending of the compile request.
-	reqMu sync.Mutex
+	// Protects the sending of messages to Dart Sass.
+	sendMu sync.Mutex
 
 	mu      sync.Mutex // Protects all below.
 	seq     uint32
@@ -122,35 +116,42 @@ func (t *Transpiler) Close() error {
 func (t *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
 
-	if err := args.init(t.opts); err != nil {
-		return result, err
-	}
+	createInboundMessage := func(seq uint32) (*embeddedsass.InboundMessage, error) {
+		if err := args.init(seq, t.opts); err != nil {
+			return nil, err
+		}
 
-	message := &embeddedsass.InboundMessage_CompileRequest_{
-		CompileRequest: &embeddedsass.InboundMessage_CompileRequest{
-			Importers: args.sassImporters,
-			Style:     args.sassOutputStyle,
-			Input: &embeddedsass.InboundMessage_CompileRequest_String_{
-				String_: &embeddedsass.InboundMessage_CompileRequest_StringInput{
-					Syntax: args.sassSourceSyntax,
-					Source: args.Source,
-					Url:    args.URL,
+		message := &embeddedsass.InboundMessage_CompileRequest_{
+			CompileRequest: &embeddedsass.InboundMessage_CompileRequest{
+				Importers: args.sassImporters,
+				Style:     args.sassOutputStyle,
+				Input: &embeddedsass.InboundMessage_CompileRequest_String_{
+					String_: &embeddedsass.InboundMessage_CompileRequest_StringInput{
+						Syntax: args.sassSourceSyntax,
+						Source: args.Source,
+						Url:    args.URL,
+					},
 				},
+				SourceMap: args.EnableSourceMap,
 			},
-			SourceMap: args.EnableSourceMap,
-		},
+		}
+
+		return &embeddedsass.InboundMessage{
+			Message: message,
+		}, nil
 	}
 
-	resp, err := t.invoke(
-		&embeddedsass.InboundMessage{
-			Message: message,
-		},
-	)
+	call, err := t.newCall(createInboundMessage, args)
 	if err != nil {
 		return result, err
 	}
+	call = <-call.Done
+	if call.Error != nil {
+		return result, call.Error
+	}
 
-	csp := resp.Message.(*embeddedsass.OutboundMessage_CompileResponse_)
+	response := call.Response
+	csp := response.Message.(*embeddedsass.OutboundMessage_CompileResponse_)
 
 	switch resp := csp.CompileResponse.Result.(type) {
 	case *embeddedsass.OutboundMessage_CompileResponse_Success:
@@ -172,6 +173,16 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 	}
 
 	return result, nil
+}
+
+func (t *Transpiler) getImportResolver(id uint32) ImportResolver {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	call, found := t.pending[id]
+	if !found {
+		panic(fmt.Sprintf("call with ID %d not found", id))
+	}
+	return call.importResolver
 }
 
 func (t *Transpiler) input() {
@@ -214,13 +225,13 @@ func (t *Transpiler) input() {
 			call.Response = &msg
 			call.done()
 		case *embeddedsass.OutboundMessage_CanonicalizeRequest_:
+			resolver := t.getImportResolver(c.CanonicalizeRequest.CompilationId)
 			var url *embeddedsass.InboundMessage_CanonicalizeResponse_Url
-			if resolved := t.opts.ImportResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl()); resolved != "" {
+			if resolved := resolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl()); resolved != "" {
 				url = &embeddedsass.InboundMessage_CanonicalizeResponse_Url{
 					Url: resolved,
 				}
 			}
-
 			response := &embeddedsass.InboundMessage_CanonicalizeResponse_{
 				CanonicalizeResponse: &embeddedsass.InboundMessage_CanonicalizeResponse{
 					Id:     c.CanonicalizeRequest.GetId(),
@@ -235,6 +246,7 @@ func (t *Transpiler) input() {
 			)
 
 		case *embeddedsass.OutboundMessage_ImportRequest_:
+			resolver := t.getImportResolver(c.ImportRequest.CompilationId)
 			url := c.ImportRequest.GetUrl()
 			var sourceMapURL string
 			// Dart Sass expect a browser-accessible URL or an empty string.
@@ -251,7 +263,7 @@ func (t *Transpiler) input() {
 					Id: c.ImportRequest.GetId(),
 					Result: &embeddedsass.InboundMessage_ImportResponse_Success{
 						Success: &embeddedsass.InboundMessage_ImportResponse_ImportSuccess{
-							Contents:     t.opts.ImportResolver.Load(url),
+							Contents:     resolver.Load(url),
 							SourceMapUrl: sourceMapURL,
 						},
 					},
@@ -279,28 +291,22 @@ func (t *Transpiler) input() {
 	}
 }
 
-func (t *Transpiler) invoke(message *embeddedsass.InboundMessage) (*embeddedsass.OutboundMessage, error) {
-	request := &call{
-		Request: message,
-		Done:    make(chan *call, 1),
-	}
-
-	response := <-t.sendCall(request).Done
-
-	if response.Error != nil {
-		return nil, response.Error
-	}
-
-	return response.Response, nil
-}
-
-func (t *Transpiler) sendCall(call *call) *call {
-	t.reqMu.Lock()
-	defer t.reqMu.Unlock()
-
+func (t *Transpiler) newCall(createInbound func(seq uint32) (*embeddedsass.InboundMessage, error), args Args) (*call, error) {
 	t.mu.Lock()
 	// TODO1 handle shutdown.
 	id := t.seq
+	req, err := createInbound(id)
+	if err != nil {
+		t.mu.Unlock()
+		return nil, err
+	}
+
+	call := &call{
+		Request:        req,
+		Done:           make(chan *call, 1),
+		importResolver: args.ImportResolver,
+	}
+
 	t.pending[id] = call
 	t.seq++
 	t.mu.Unlock()
@@ -309,16 +315,16 @@ func (t *Transpiler) sendCall(call *call) *call {
 	case *embeddedsass.InboundMessage_CompileRequest_:
 		c.CompileRequest.Id = id
 	default:
-		call.Error = fmt.Errorf("unsupported request message type. %T", call.Request.Message)
-		return call
+		return nil, fmt.Errorf("unsupported request message type. %T", call.Request.Message)
 	}
 
-	call.Error = t.sendInboundMessage(call.Request)
-
-	return call
+	return call, t.sendInboundMessage(call.Request)
 }
 
 func (t *Transpiler) sendInboundMessage(message *embeddedsass.InboundMessage) error {
+	t.sendMu.Lock()
+	defer t.sendMu.Unlock()
+
 	out, err := proto.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %s", err)
@@ -340,8 +346,9 @@ func (t *Transpiler) sendInboundMessage(message *embeddedsass.InboundMessage) er
 }
 
 type call struct {
-	Request  *embeddedsass.InboundMessage
-	Response *embeddedsass.OutboundMessage
+	Request        *embeddedsass.InboundMessage
+	Response       *embeddedsass.OutboundMessage
+	importResolver ImportResolver
 
 	Error error
 	Done  chan *call

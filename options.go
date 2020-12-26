@@ -17,9 +17,6 @@ type Options struct {
 	// There may be several ways to install this, one would be to
 	// download it from here: https://github.com/sass/dart-sass-embedded/releases
 	DartSassEmbeddedFilename string
-
-	// Custom resolver to use to resolve imports.
-	ImportResolver ImportResolver
 }
 
 func (opts *Options) init() error {
@@ -68,6 +65,10 @@ type Args struct {
 	// If enabled, a sourcemap will be generated and returned in Result.
 	EnableSourceMap bool
 
+	// Custom resolver to use to resolve imports.
+	// If set, this will be the first in the resolver chain.
+	ImportResolver ImportResolver
+
 	// Additional file paths to uses to resolve imports.
 	IncludePaths []string
 
@@ -78,7 +79,7 @@ type Args struct {
 	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
 }
 
-func (args *Args) init(opts Options) error {
+func (args *Args) init(seq uint32, opts Options) error {
 	if args.OutputStyle == "" {
 		args.OutputStyle = OutputStyleNested
 	}
@@ -99,11 +100,11 @@ func (args *Args) init(opts Options) error {
 
 	args.sassSourceSyntax = embeddedsass.InboundMessage_Syntax(v)
 
-	if opts.ImportResolver != nil {
+	if args.ImportResolver != nil {
 		args.sassImporters = []*embeddedsass.InboundMessage_CompileRequest_Importer{
 			{
 				Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_ImporterId{
-					ImporterId: importerID,
+					ImporterId: seq,
 				},
 			},
 		}

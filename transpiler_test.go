@@ -42,7 +42,7 @@ func (t testImportResolver) CanonicalizeURL(url string) string {
 		return ""
 	}
 
-	return "file:/myproject/scss/" + url + "_myfile.scss"
+	return "file:/my" + t.name + "/scss/" + url + "_myfile.scss"
 }
 
 func (t testImportResolver) Load(url string) string {
@@ -79,8 +79,7 @@ body
 			OutputStyle:  OutputStyleCompressed,
 			SourceSyntax: SourceSyntaxSASS,
 		}, Result{CSS: "body{font:100% Helvetica,sans-serif;color:#333}"}},
-		{"Import resolver", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }"}, Result{CSS: "div p {\n  color: #ffff;\n}"}},
-		{"Import resolver with source map", Options{ImportResolver: colorsResolver}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true}, Result{CSS: "div p {\n  color: #ffff;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///myproject/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
+		{"Import resolver with source map", Options{}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true, ImportResolver: colorsResolver}, Result{CSS: "div p {\n  color: #ffff;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///mycolors/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
 
 		// Error cases
 		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
@@ -177,6 +176,55 @@ div { color: $primary-color; }`, num)
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestTranspilerParallelImportResolver(t *testing.T) {
+	c := qt.New(t)
+
+	createImportResolver := func(width int) ImportResolver {
+
+		return testImportResolver{
+			name:    "widths",
+			content: fmt.Sprintf(`$width:  %d`, width),
+		}
+
+	}
+
+	transpiler, clean := newTestTranspiler(c, Options{})
+	defer clean()
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			for j := 0; j < 10; j++ {
+
+				for k := 0; k < 20; k++ {
+					args := Args{
+						OutputStyle:    OutputStyleCompressed,
+						ImportResolver: createImportResolver(j + i),
+						Source: `
+@import "widths";
+
+div { p { width: $width; } }`,
+					}
+
+					result, err := transpiler.Execute(args)
+					c.Check(err, qt.IsNil)
+					c.Check(result.CSS, qt.Equals, fmt.Sprintf("div p{width:%d}", j+i))
+					if c.Failed() {
+						return
+					}
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
 }
 
 func BenchmarkTranspiler(b *testing.B) {
