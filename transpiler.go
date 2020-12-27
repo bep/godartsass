@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
 	"os"
 	"os/exec"
 	"regexp"
@@ -96,6 +97,7 @@ type SassError struct {
 			Offset int `json:"offset"`
 			Column int `json:"column"`
 		} `json:"end"`
+		Url     string `json:"url"`
 		Context string `json:"context"`
 	} `json:"span"`
 }
