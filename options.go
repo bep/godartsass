@@ -54,6 +54,9 @@ type Args struct {
 	// Leave empty if it's unknown.
 	// Must include a scheme, e.g. 'file:///myproject/main.scss'
 	// See https://en.wikipedia.org/wiki/File_URI_scheme
+	//
+	// Note: There is an open issue for this value when combined with custom
+	// importers, see https://github.com/sass/dart-sass-embedded/issues/24
 	URL string
 
 	// Defaults is SCSS.
