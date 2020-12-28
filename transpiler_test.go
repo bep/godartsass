@@ -227,6 +227,52 @@ div { p { width: $width; } }`,
 
 }
 
+func TestTranspilerClose(t *testing.T) {
+	c := qt.New(t)
+	transpiler, _ := newTestTranspiler(c, Options{})
+	var wg sync.WaitGroup
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(gor int) {
+			defer wg.Done()
+			for j := 0; j < 4; j++ {
+				src := fmt.Sprintf(`
+$primary-color: #%03d;
+
+div { color: $primary-color; }`, gor)
+
+				num := gor + j
+
+				if num == 10 {
+					err := transpiler.Close()
+					if err != nil {
+						c.Check(err, qt.Equals, ErrShutdown)
+					}
+				}
+
+				result, err := transpiler.Execute(Args{Source: src})
+
+				if err != nil {
+					c.Check(err, qt.Equals, ErrShutdown)
+				} else {
+					c.Check(err, qt.IsNil)
+					c.Check(result.CSS, qt.Equals, fmt.Sprintf("div {\n  color: #%03d;\n}", gor))
+				}
+
+				if c.Failed() {
+					return
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	for _, p := range transpiler.pending {
+		c.Assert(p.Error, qt.Equals, ErrShutdown)
+	}
+}
+
 func BenchmarkTranspiler(b *testing.B) {
 	type tester struct {
 		src        string
@@ -318,7 +364,8 @@ func newTestTranspiler(c *qt.C, opts Options) (*Transpiler, func()) {
 	c.Assert(err, qt.IsNil)
 
 	return transpiler, func() {
-		c.Assert(transpiler.Close(), qt.IsNil)
+		err := transpiler.Close()
+		c.Assert(err, qt.IsNil)
 	}
 }
 

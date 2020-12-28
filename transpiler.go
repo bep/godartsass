@@ -7,11 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"os"
 	"os/exec"
 	"regexp"
-	"runtime"
 	"sync"
 
 	"github.com/cli/safeexec"
@@ -20,7 +20,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var defaultDartSassEmbeddedFilename = "dart-sass-embedded"
+const defaultDartSassEmbeddedFilename = "dart-sass-embedded"
+
+// ErrShutdown will be returned from Execute if the transpiler is or
+// is about to be shut down.
+var ErrShutdown = errors.New("connection is shut down")
 
 // Start creates an starts a new SCSS transpiler that communicates with the
 // Dass Sass Embedded protocol via Stdin and Stdout.
@@ -70,6 +74,9 @@ type Transpiler struct {
 	// stdin/stdout of the Dart Sass protocol
 	conn io.ReadWriteCloser
 
+	closing  bool
+	shutdown bool
+
 	// Protects the sending of messages to Dart Sass.
 	sendMu sync.Mutex
 
@@ -106,15 +113,27 @@ func (e SassError) Error() string {
 	return e.Message
 }
 
-// Close closes the stream to the embedded Dart Sass Protocol, which
-// shuts down.
+// Close closes the stream to the embedded Dart Sass Protocol, shutting it down.
+// If it is already shutting down, ErrShutdown is returned.
 func (t *Transpiler) Close() error {
-	return t.conn.Close()
+	t.sendMu.Lock()
+	defer t.sendMu.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.closing {
+		return ErrShutdown
+	}
+
+	t.closing = true
+	err := t.conn.Close()
+
+	return err
 }
 
 // Execute transpiles the string Source given in Args into CSS.
 // If Dart Sass resturns a "compile failure", the error returned will be
-// of type SassError..
+// of type SassError.
 func (t *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
 
@@ -241,7 +260,7 @@ func (t *Transpiler) input() {
 				},
 			}
 
-			t.sendInboundMessage(
+			err = t.sendInboundMessage(
 				&embeddedsass.InboundMessage{
 					Message: response,
 				},
@@ -272,7 +291,7 @@ func (t *Transpiler) input() {
 				},
 			}
 
-			t.sendInboundMessage(
+			err = t.sendInboundMessage(
 				&embeddedsass.InboundMessage{
 					Message: response,
 				},
@@ -284,7 +303,22 @@ func (t *Transpiler) input() {
 		default:
 			err = fmt.Errorf("unsupported response message type. %T", msg.Message)
 		}
+	}
 
+	// Terminate pending calls.
+	t.sendMu.Lock()
+	defer t.sendMu.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.shutdown = true
+	isEOF := err == io.EOF || strings.Contains(err.Error(), "already closed")
+	if isEOF {
+		if t.closing {
+			err = ErrShutdown
+		} else {
+			err = io.ErrUnexpectedEOF
+		}
 	}
 
 	for _, call := range t.pending {
@@ -295,7 +329,6 @@ func (t *Transpiler) input() {
 
 func (t *Transpiler) newCall(createInbound func(seq uint32) (*embeddedsass.InboundMessage, error), args Args) (*call, error) {
 	t.mu.Lock()
-	// TODO1 handle shutdown.
 	id := t.seq
 	req, err := createInbound(id)
 	if err != nil {
@@ -309,8 +342,16 @@ func (t *Transpiler) newCall(createInbound func(seq uint32) (*embeddedsass.Inbou
 		importResolver: args.ImportResolver,
 	}
 
+	if t.shutdown || t.closing {
+		t.mu.Unlock()
+		call.Error = ErrShutdown
+		call.done()
+		return call, nil
+	}
+
 	t.pending[id] = call
 	t.seq++
+
 	t.mu.Unlock()
 
 	switch c := call.Request.Message.(type) {
@@ -326,6 +367,12 @@ func (t *Transpiler) newCall(createInbound func(seq uint32) (*embeddedsass.Inbou
 func (t *Transpiler) sendInboundMessage(message *embeddedsass.InboundMessage) error {
 	t.sendMu.Lock()
 	defer t.sendMu.Unlock()
+	t.mu.Lock()
+	if t.closing || t.shutdown {
+		t.mu.Unlock()
+		return ErrShutdown
+	}
+	t.mu.Unlock()
 
 	out, err := proto.Marshal(message)
 	if err != nil {
@@ -361,10 +408,6 @@ func (call *call) done() {
 	case call.Done <- call:
 	default:
 	}
-}
-
-func isWindows() bool {
-	return runtime.GOOS == "windows"
 }
 
 var hasSchemaRe = regexp.MustCompile("^[a-z]*:")
