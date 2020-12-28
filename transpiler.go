@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"strings"
 
 	"os"
@@ -110,7 +111,9 @@ type SassError struct {
 }
 
 func (e SassError) Error() string {
-	return e.Message
+	span := e.Span
+	file := path.Clean(strings.TrimPrefix(span.Url, "file:"))
+	return fmt.Sprintf("file: %q, context: %q: %s", file, span.Context, e.Message)
 }
 
 // Close closes the stream to the embedded Dart Sass Protocol, shutting it down.
