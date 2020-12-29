@@ -199,14 +199,14 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 	return result, nil
 }
 
-func (t *Transpiler) getImportResolver(id uint32) ImportResolver {
+func (t *Transpiler) getCall(id uint32) *call {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	call, found := t.pending[id]
 	if !found {
 		panic(fmt.Sprintf("call with ID %d not found", id))
 	}
-	return call.importResolver
+	return call
 }
 
 func (t *Transpiler) input() {
@@ -249,30 +249,41 @@ func (t *Transpiler) input() {
 			call.Response = &msg
 			call.done()
 		case *embeddedsass.OutboundMessage_CanonicalizeRequest_:
-			resolver := t.getImportResolver(c.CanonicalizeRequest.CompilationId)
-			var url *embeddedsass.InboundMessage_CanonicalizeResponse_Url
-			if resolved := resolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl()); resolved != "" {
-				url = &embeddedsass.InboundMessage_CanonicalizeResponse_Url{
-					Url: resolved,
+			call := t.getCall(c.CanonicalizeRequest.CompilationId)
+			resolved, err := call.importResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl())
+
+			var response *embeddedsass.InboundMessage_CanonicalizeResponse
+			if err != nil {
+				response = &embeddedsass.InboundMessage_CanonicalizeResponse{
+					Id: c.CanonicalizeRequest.GetId(),
+					Result: &embeddedsass.InboundMessage_CanonicalizeResponse_Error{
+						Error: err.Error(),
+					},
 				}
-			}
-			response := &embeddedsass.InboundMessage_CanonicalizeResponse_{
-				CanonicalizeResponse: &embeddedsass.InboundMessage_CanonicalizeResponse{
-					Id:     c.CanonicalizeRequest.GetId(),
-					Result: url,
-				},
+			} else {
+				response = &embeddedsass.InboundMessage_CanonicalizeResponse{
+					Id: c.CanonicalizeRequest.GetId(),
+					Result: &embeddedsass.InboundMessage_CanonicalizeResponse_Url{
+						Url: resolved,
+					},
+				}
 			}
 
 			err = t.sendInboundMessage(
 				&embeddedsass.InboundMessage{
-					Message: response,
+					Message: &embeddedsass.InboundMessage_CanonicalizeResponse_{
+						CanonicalizeResponse: response,
+					},
 				},
 			)
-
 		case *embeddedsass.OutboundMessage_ImportRequest_:
-			resolver := t.getImportResolver(c.ImportRequest.CompilationId)
+			call := t.getCall(c.ImportRequest.CompilationId)
 			url := c.ImportRequest.GetUrl()
+			contents, err := call.importResolver.Load(url)
+
+			var response *embeddedsass.InboundMessage_ImportResponse
 			var sourceMapURL string
+
 			// Dart Sass expect a browser-accessible URL or an empty string.
 			// If no URL is supplied, a `data:` URL wil be generated
 			// automatically from `contents`
@@ -282,21 +293,30 @@ func (t *Transpiler) input() {
 				sourceMapURL = url
 			}
 
-			response := &embeddedsass.InboundMessage_ImportResponse_{
-				ImportResponse: &embeddedsass.InboundMessage_ImportResponse{
+			if err != nil {
+				response = &embeddedsass.InboundMessage_ImportResponse{
+					Id: c.ImportRequest.GetId(),
+					Result: &embeddedsass.InboundMessage_ImportResponse_Error{
+						Error: err.Error(),
+					},
+				}
+			} else {
+				response = &embeddedsass.InboundMessage_ImportResponse{
 					Id: c.ImportRequest.GetId(),
 					Result: &embeddedsass.InboundMessage_ImportResponse_Success{
 						Success: &embeddedsass.InboundMessage_ImportResponse_ImportSuccess{
-							Contents:     resolver.Load(url),
+							Contents:     contents,
 							SourceMapUrl: sourceMapURL,
 						},
 					},
-				},
+				}
 			}
 
 			err = t.sendInboundMessage(
 				&embeddedsass.InboundMessage{
-					Message: response,
+					Message: &embeddedsass.InboundMessage_ImportResponse_{
+						ImportResponse: response,
+					},
 				},
 			)
 		case *embeddedsass.OutboundMessage_LogEvent_:

@@ -2,6 +2,7 @@ package godartsass
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -35,21 +36,30 @@ const (
 type testImportResolver struct {
 	name    string
 	content string
+
+	failOnCanonicalizeURL bool
+	failOnLoad            bool
 }
 
-func (t testImportResolver) CanonicalizeURL(url string) string {
+func (t testImportResolver) CanonicalizeURL(url string) (string, error) {
+	if t.failOnCanonicalizeURL {
+		return "", errors.New("failed")
+	}
 	if url != t.name {
-		return ""
+		return "", nil
 	}
 
-	return "file:/my" + t.name + "/scss/" + url + "_myfile.scss"
+	return "file:/my" + t.name + "/scss/" + url + "_myfile.scss", nil
 }
 
-func (t testImportResolver) Load(url string) string {
+func (t testImportResolver) Load(url string) (string, error) {
+	if t.failOnLoad {
+		return "", errors.New("failed")
+	}
 	if !strings.Contains(url, t.name) {
 		panic("protocol error")
 	}
-	return t.content
+	return t.content, nil
 }
 
 func TestTranspilerVariants(t *testing.T) {
@@ -84,6 +94,8 @@ body
 		// Error cases
 		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
 		{"Import not found", Options{}, Args{Source: "@import \"foo\""}, false},
+		{"Error in ImportResolver.CanonicalizeURL", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnCanonicalizeURL: true}}, false},
+		{"Error in ImportResolver.Load", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnLoad: true}}, false},
 		{"Invalid OutputStyle", Options{}, Args{Source: "a", OutputStyle: "asdf"}, false},
 		{"Invalid SourceSyntax", Options{}, Args{Source: "a", SourceSyntax: "asdf"}, false},
 	} {
