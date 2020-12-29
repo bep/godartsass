@@ -94,6 +94,7 @@ body
 		// Error cases
 		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
 		{"Import not found", Options{}, Args{Source: "@import \"foo\""}, false},
+		{"Import with ImportResolver, not found", Options{}, Args{Source: "@import \"foo\"", ImportResolver: colorsResolver}, false},
 		{"Error in ImportResolver.CanonicalizeURL", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnCanonicalizeURL: true}}, false},
 		{"Error in ImportResolver.Load", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnLoad: true}}, false},
 		{"Invalid OutputStyle", Options{}, Args{Source: "a", OutputStyle: "asdf"}, false},

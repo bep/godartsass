@@ -261,11 +261,15 @@ func (t *Transpiler) input() {
 					},
 				}
 			} else {
-				response = &embeddedsass.InboundMessage_CanonicalizeResponse{
-					Id: c.CanonicalizeRequest.GetId(),
-					Result: &embeddedsass.InboundMessage_CanonicalizeResponse_Url{
+				var url *embeddedsass.InboundMessage_CanonicalizeResponse_Url
+				if resolved != "" {
+					url = &embeddedsass.InboundMessage_CanonicalizeResponse_Url{
 						Url: resolved,
-					},
+					}
+				}
+				response = &embeddedsass.InboundMessage_CanonicalizeResponse{
+					Id:     c.CanonicalizeRequest.GetId(),
+					Result: url,
 				}
 			}
 
