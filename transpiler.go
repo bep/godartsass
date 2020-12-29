@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"path"
 	"strings"
 
 	"os"
 	"os/exec"
-	"regexp"
 	"sync"
 
 	"github.com/cli/safeexec"
@@ -287,9 +287,7 @@ func (t *Transpiler) input() {
 			// Dart Sass expect a browser-accessible URL or an empty string.
 			// If no URL is supplied, a `data:` URL wil be generated
 			// automatically from `contents`
-			// The hasSchema function may be too coarse grained, but we
-			// need to test this in real life situations.
-			if hasSchema(url) {
+			if hasScheme(url) {
 				sourceMapURL = url
 			}
 
@@ -433,8 +431,10 @@ func (call *call) done() {
 	}
 }
 
-var hasSchemaRe = regexp.MustCompile("^[a-z]*:")
-
-func hasSchema(s string) bool {
-	return hasSchemaRe.MatchString(s)
+func hasScheme(s string) bool {
+	u, err := url.ParseRequestURI(s)
+	if err != nil {
+		return false
+	}
+	return u.Scheme != ""
 }

@@ -360,13 +360,14 @@ func BenchmarkTranspiler(b *testing.B) {
 	})
 }
 
-func TestHasSchema(t *testing.T) {
+func TestHasScheme(t *testing.T) {
 	c := qt.New(t)
 
-	c.Assert(hasSchema("file:foo"), qt.Equals, true)
-	c.Assert(hasSchema("http:foo"), qt.Equals, true)
-	c.Assert(hasSchema("123:foo"), qt.Equals, false)
-	c.Assert(hasSchema("foo"), qt.Equals, false)
+	c.Assert(hasScheme("file:foo"), qt.Equals, true)
+	c.Assert(hasScheme("http:foo"), qt.Equals, true)
+	c.Assert(hasScheme("http://foo"), qt.Equals, true)
+	c.Assert(hasScheme("123:foo"), qt.Equals, false)
+	c.Assert(hasScheme("foo"), qt.Equals, false)
 
 }
 
