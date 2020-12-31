@@ -9,12 +9,10 @@ import (
 func TestParseOutputStyle(t *testing.T) {
 	c := qt.New(t)
 
-	c.Assert(ParseOutputStyle("nested"), qt.Equals, OutputStyleNested)
-	c.Assert(ParseOutputStyle("compact"), qt.Equals, OutputStyleCompact)
 	c.Assert(ParseOutputStyle("compressed"), qt.Equals, OutputStyleCompressed)
 	c.Assert(ParseOutputStyle("ComPressed"), qt.Equals, OutputStyleCompressed)
 	c.Assert(ParseOutputStyle("expanded"), qt.Equals, OutputStyleExpanded)
-	c.Assert(ParseOutputStyle("foo"), qt.Equals, OutputStyleNested)
+	c.Assert(ParseOutputStyle("foo"), qt.Equals, OutputStyleExpanded)
 }
 
 func TestParseSourceSyntax(t *testing.T) {

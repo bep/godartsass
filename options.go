@@ -84,7 +84,7 @@ type Args struct {
 
 func (args *Args) init(seq uint32, opts Options) error {
 	if args.OutputStyle == "" {
-		args.OutputStyle = OutputStyleNested
+		args.OutputStyle = OutputStyleExpanded
 	}
 	if args.SourceSyntax == "" {
 		args.SourceSyntax = SourceSyntaxSCSS
@@ -133,30 +133,36 @@ type (
 )
 
 const (
-	OutputStyleNested     OutputStyle = "NESTED"
-	OutputStyleExpanded   OutputStyle = "EXPANDED"
-	OutputStyleCompact    OutputStyle = "COMPACT"
-	OutputStyleCompressed OutputStyle = "COMPRESSED"
+	// Expanded (default) output.
+	// Note that LibSASS and Ruby SASS have more output styles, and their
+	// default is NESTED.
+	OutputStyleExpanded OutputStyle = "EXPANDED"
 
+	// Compressed/minified output.
+	OutputStyleCompressed OutputStyle = "COMPRESSED"
+)
+
+const (
+	// SCSS style source syntax (default).
 	SourceSyntaxSCSS SourceSyntax = "SCSS"
+
+	// Indented or SASS style source syntax.
 	SourceSyntaxSASS SourceSyntax = "INDENTED"
-	SourceSyntaxCSS  SourceSyntax = "CSS"
+
+	// Regular CSS source syntax.
+	SourceSyntaxCSS SourceSyntax = "CSS"
 )
 
 // ParseOutputStyle will convert s into OutputStyle.
 // Case insensitive, returns OutputStyleNested for unknown value.
 func ParseOutputStyle(s string) OutputStyle {
 	switch OutputStyle(strings.ToUpper(s)) {
-	case OutputStyleNested:
-		return OutputStyleNested
-	case OutputStyleCompact:
-		return OutputStyleCompact
 	case OutputStyleCompressed:
 		return OutputStyleCompressed
 	case OutputStyleExpanded:
 		return OutputStyleExpanded
 	default:
-		return OutputStyleNested
+		return OutputStyleExpanded
 	}
 }
 
