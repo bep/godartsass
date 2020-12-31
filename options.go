@@ -62,7 +62,7 @@ type Args struct {
 	// Defaults is SCSS.
 	SourceSyntax SourceSyntax
 
-	// Default is NESTED.
+	// Default is EXPANDED.
 	OutputStyle OutputStyle
 
 	// If enabled, a sourcemap will be generated and returned in Result.
