@@ -125,7 +125,10 @@ func (args *Args) init(seq uint32, opts Options) error {
 }
 
 type (
-	OutputStyle  string
+	// OutputStyle defines the style of the generated CSS.
+	OutputStyle string
+
+	// SourceSyntax defines the syntax of the source passed in Execute.
 	SourceSyntax string
 )
 

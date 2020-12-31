@@ -1,4 +1,7 @@
 // Package godartsass provides a Go API for the Dass Sass Embedded protocol.
+//
+// Use the Start function to create and start a new thread safe transpiler.
+// Close it when done.
 package godartsass
 
 import (
@@ -23,11 +26,11 @@ import (
 
 const defaultDartSassEmbeddedFilename = "dart-sass-embedded"
 
-// ErrShutdown will be returned from Execute if the transpiler is or
+// ErrShutdown will be returned from Execute and Close if the transpiler is or
 // is about to be shut down.
 var ErrShutdown = errors.New("connection is shut down")
 
-// Start creates an starts a new SCSS transpiler that communicates with the
+// Start creates and starts a new SCSS transpiler that communicates with the
 // Dass Sass Embedded protocol via Stdin and Stdout.
 //
 // Closing the transpiler will shut down the process.
