@@ -1,6 +1,7 @@
 package godartsass
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
@@ -22,15 +23,22 @@ func newConn(cmd *exec.Cmd) (_ conn, err error) {
 
 	out, err := cmd.StdoutPipe()
 	stdErr := &tailBuffer{limit: 1024}
-	c := conn{out, in, stdErr, cmd}
+	buff := bufio.NewReader(out)
+	c := conn{buff, buff, out, in, stdErr, cmd}
 	cmd.Stderr = c.stdErr
 
 	return c, err
 }
 
-// conn wraps a ReadCloser, WriteCloser, and a Cmd.
+type byteReadWriteCloser interface {
+	io.ReadWriteCloser
+	io.ByteReader
+}
+
 type conn struct {
-	io.ReadCloser
+	io.ByteReader
+	io.Reader
+	readerCloser io.Closer
 	io.WriteCloser
 	stdErr *tailBuffer
 	cmd    *exec.Cmd
@@ -48,7 +56,7 @@ func (c conn) Start() error {
 // Close closes conn's WriteCloser, ReadClosers, and waits for the command to finish.
 func (c conn) Close() error {
 	writeErr := c.WriteCloser.Close()
-	readErr := c.ReadCloser.Close()
+	readErr := c.readerCloser.Close()
 	cmdErr := c.waitWithTimeout()
 
 	if writeErr != nil {
