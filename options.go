@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bep/godartsass/internal/embeddedsass"
 )
@@ -17,11 +18,21 @@ type Options struct {
 	// There may be several ways to install this, one would be to
 	// download it from here: https://github.com/sass/dart-sass-embedded/releases
 	DartSassEmbeddedFilename string
+
+	// Timeout is the duration allowed for dart sass to transpile.
+	// This was added for the beta6 version of Dart Sass Protocol,
+	// as running this code against the beta5 binary would hang
+	// on Execute.
+	Timeout time.Duration
 }
 
 func (opts *Options) init() error {
 	if opts.DartSassEmbeddedFilename == "" {
 		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
+	}
+
+	if opts.Timeout == 0 {
+		opts.Timeout = 30 * time.Second
 	}
 
 	return nil

@@ -10,6 +10,16 @@ package sass.embedded_protocol;
 // provides a `oneof` that makes it possible to determine the type of each
 // inbound message.
 message InboundMessage {
+  // A request for information about the version of the embedded compiler. The
+  // host can use this to provide diagnostic information to the user, to check
+  // which features the compiler supports, or to ensure that it's compatible
+  // with the same protocol version the compiler supports.
+  message VersionRequest {
+    // This message's contents are intentionally empty. It just acts as a signal
+    // to the compiler to send a VersionResponse. More fields may be added in
+    // the future.
+  }
+
   // A request that compiles an entrypoint to CSS.
   message CompileRequest {
     // This compilation's request id. This is included in messages sent from the
@@ -231,6 +241,7 @@ message InboundMessage {
     ImportResponse importResponse = 4;
     FileImportResponse fileImportResponse = 5;
     FunctionCallResponse functionCallResponse = 6;
+    VersionRequest versionRequest = 7;
   }
 }
 
@@ -238,10 +249,28 @@ message InboundMessage {
 // provides a `oneof` that makes it possible to determine the type of each
 // outbound message.
 message OutboundMessage {
+  // A response that contains the version of the embedded compiler.
+  message VersionResponse {
+    // The version of the embedded protocol, in semver format.
+    string protocol_version = 1;
+
+    // The version of the embedded compiler package. This has no guaranteed
+    // format, although compilers are encouraged to use semver.
+    string compiler_version = 2;
+
+    // The version of the Sass implementation that the embedded compiler wraps.
+    // This has no guaranteed format, although Sass implementations are
+    // encouraged to use semver.
+    string implementation_version = 3;
+
+    // The name of the Sass implementation that the embedded compiler wraps.
+    string implementation_name = 4;
+  }
+
   // A response that contains the result of a compilation.
   message CompileResponse {
     // The compilation's request id. Mandatory.
-    int32 id = 1;
+    uint32 id = 1;
 
     // A message indicating that the Sass file was successfully compiled to CSS.
     message CompileSuccess {
@@ -387,12 +416,12 @@ message OutboundMessage {
     // The URL of the import to be canonicalized. This may be either absolute or
     // relative.
     //
-    // When loading a URL, the host must first try resolving that URL relative
-    // to the canonical URL of the current file, and canonicalizing the result
-    // using the importer that loaded the current file. If this returns `null`,
-    // the host must then try canonicalizing the original URL with each importer
-    // in order until one returns something other than `null`. That is the
-    // result of the import.
+    // When loading a URL, the compiler must first try resolving that URL
+    // relative to the canonical URL of the current file, and canonicalizing the
+    // result using the importer that loaded the current file. If this returns
+    // `null`, the compiler must then try canonicalizing the original URL with
+    // each importer in order until one returns something other than `null`.
+    // That is the result of the import.
     string url = 4;
   }
 
@@ -428,8 +457,7 @@ message OutboundMessage {
     // Mandatory.
     uint32 importer_id = 3;
 
-    // The canonical URL of the import. This is guaranteed to be a URL returned
-    // by a `CanonicalizeRequest` to this importer.
+    // The (non-canonicalized) URL of the import.
     string url = 4;
   }
 
@@ -475,6 +503,7 @@ message OutboundMessage {
     ImportRequest importRequest = 5;
     FileImportRequest fileImportRequest = 6;
     FunctionCallRequest functionCallRequest = 7;
+    VersionResponse versionResponse = 8;
   }
 }
 
@@ -498,7 +527,7 @@ message ProtocolError {
   // The ID of the request that had an error. This MUST be `-1` if the request
   // ID couldn't be determined, or if the error is being reported for a response
   // or an event.
-  int32 id = 2;
+  uint32 id = 2;
 
   // A human-readable message providing more detail about the error.
   string message = 3;

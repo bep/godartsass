@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"os"
 	"os/exec"
@@ -63,6 +64,7 @@ func Start(opts Options) (*Transpiler, error) {
 	t := &Transpiler{
 		opts:    opts,
 		conn:    conn,
+		lenBuf:  make([]byte, binary.MaxVarintLen64),
 		pending: make(map[uint32]*call),
 	}
 
@@ -76,7 +78,9 @@ type Transpiler struct {
 	opts Options
 
 	// stdin/stdout of the Dart Sass protocol
-	conn io.ReadWriteCloser
+	conn   byteReadWriteCloser
+	lenBuf []byte
+	msgBuf []byte
 
 	closing  bool
 	shutdown bool
@@ -172,7 +176,13 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 	if err != nil {
 		return result, err
 	}
-	call = <-call.Done
+
+	select {
+	case call = <-call.Done:
+	case <-time.After(t.opts.Timeout):
+		return result, errors.New("timeout waiting for Dart Sass to respond; if you're running with Embedded Sass protocol < beta6, you need to upgrade")
+	}
+
 	if call.Error != nil {
 		return result, call.Error
 	}
@@ -217,29 +227,33 @@ func (t *Transpiler) input() {
 
 	for err == nil {
 		// The header is the length in bytes of the remaining message.
-		var plen int32
-		err = binary.Read(t.conn, binary.LittleEndian, &plen)
+		var l uint64
+		l, err = binary.ReadUvarint(t.conn)
 		if err != nil {
 			break
 		}
 
-		b := make([]byte, plen)
+		plen := int(l)
+		if len(t.msgBuf) < plen {
+			t.msgBuf = make([]byte, plen)
+		}
 
-		_, err = io.ReadFull(t.conn, b)
+		buf := t.msgBuf[:plen]
+
+		_, err = io.ReadFull(t.conn, buf)
 		if err != nil {
 			break
 		}
 
 		var msg embeddedsass.OutboundMessage
 
-		if err = proto.Unmarshal(b, &msg); err != nil {
+		if err = proto.Unmarshal(buf, &msg); err != nil {
 			break
 		}
 
 		switch c := msg.Message.(type) {
 		case *embeddedsass.OutboundMessage_CompileResponse_:
-			// Type mismatch, see https://github.com/sass/embedded-protocol/issues/36
-			id := uint32(c.CompileResponse.Id)
+			id := c.CompileResponse.Id
 			// Attach it to the correct pending call.
 			t.mu.Lock()
 			call := t.pending[id]
@@ -253,14 +267,14 @@ func (t *Transpiler) input() {
 			call.done()
 		case *embeddedsass.OutboundMessage_CanonicalizeRequest_:
 			call := t.getCall(c.CanonicalizeRequest.CompilationId)
-			resolved, err := call.importResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl())
+			resolved, resolveErr := call.importResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl())
 
 			var response *embeddedsass.InboundMessage_CanonicalizeResponse
-			if err != nil {
+			if resolveErr != nil {
 				response = &embeddedsass.InboundMessage_CanonicalizeResponse{
 					Id: c.CanonicalizeRequest.GetId(),
 					Result: &embeddedsass.InboundMessage_CanonicalizeResponse_Error{
-						Error: err.Error(),
+						Error: resolveErr.Error(),
 					},
 				}
 			} else {
@@ -286,7 +300,7 @@ func (t *Transpiler) input() {
 		case *embeddedsass.OutboundMessage_ImportRequest_:
 			call := t.getCall(c.ImportRequest.CompilationId)
 			url := c.ImportRequest.GetUrl()
-			contents, err := call.importResolver.Load(url)
+			contents, loadErr := call.importResolver.Load(url)
 
 			var response *embeddedsass.InboundMessage_ImportResponse
 			var sourceMapURL string
@@ -298,11 +312,11 @@ func (t *Transpiler) input() {
 				sourceMapURL = url
 			}
 
-			if err != nil {
+			if loadErr != nil {
 				response = &embeddedsass.InboundMessage_ImportResponse{
 					Id: c.ImportRequest.GetId(),
 					Result: &embeddedsass.InboundMessage_ImportResponse_Error{
-						Error: err.Error(),
+						Error: loadErr.Error(),
 					},
 				}
 			} else {
@@ -331,6 +345,7 @@ func (t *Transpiler) input() {
 		default:
 			err = fmt.Errorf("unsupported response message type. %T", msg.Message)
 		}
+
 	}
 
 	// Terminate pending calls.
@@ -407,15 +422,17 @@ func (t *Transpiler) sendInboundMessage(message *embeddedsass.InboundMessage) er
 		return fmt.Errorf("failed to marshal request: %s", err)
 	}
 
-	// Every message must begin with a 4-byte (32-bit) unsigned little-endian
-	// integer indicating the length in bytes of the remaining message.
-	reqLen := uint32(len(out))
+	// Every message must begin with a varint indicating the length in bytes of
+	// the remaining message.
+	reqLen := uint64(len(out))
 
-	if err := binary.Write(t.conn, binary.LittleEndian, reqLen); err != nil {
+	n := binary.PutUvarint(t.lenBuf, reqLen)
+	_, err = t.conn.Write(t.lenBuf[:n])
+	if err != nil {
 		return err
 	}
 
-	n, err := t.conn.Write(out)
+	n, err = t.conn.Write(out)
 	if n != len(out) {
 		return errors.New("failed to write payload")
 	}
