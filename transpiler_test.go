@@ -130,6 +130,7 @@ func TestDebugWarn(t *testing.T) {
 	c := qt.New(t)
 
 	args := Args{
+		URL: "/a/b/c.scss",
 		Source: `
 $color: #333;
 body {
@@ -158,7 +159,7 @@ body {
 
 	c.Assert(result.CSS, qt.Equals, "body {\n  color: #333;\n}")
 	c.Assert(events, qt.DeepEquals, []LogEvent{
-		{Type: 2, Message: "stdin:6:1: foo"},
+		{Type: 2, Message: "/a/b/c.scss:6:1: foo"},
 		{Type: 0, Message: "bar"},
 	})
 }
