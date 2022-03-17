@@ -343,13 +343,14 @@ func (t *Transpiler) input() {
 				var logEvent LogEvent
 				e := c.LogEvent
 				if e.Span != nil {
-					url := e.Span.Url
-					if url == "" {
-						url = "stdin"
+					u := e.Span.Url
+					if u == "" {
+						u = "stdin"
 					}
+					u, _ = url.QueryUnescape(u)
 					logEvent = LogEvent{
 						Type:    LogEventType(e.Type),
-						Message: fmt.Sprintf("%s:%d:%d: %s", url, e.Span.Start.Line, e.Span.Start.Column, c.LogEvent.GetMessage()),
+						Message: fmt.Sprintf("%s:%d:%d: %s", u, e.Span.Start.Line, e.Span.Start.Column, c.LogEvent.GetMessage()),
 					}
 				} else {
 					logEvent = LogEvent{
