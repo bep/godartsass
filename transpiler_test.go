@@ -99,6 +99,7 @@ body
 		{"Error in ImportResolver.Load", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnLoad: true}}, false},
 		{"Invalid OutputStyle", Options{}, Args{Source: "a", OutputStyle: "asdf"}, false},
 		{"Invalid SourceSyntax", Options{}, Args{Source: "a", SourceSyntax: "asdf"}, false},
+		{"Erro logging", Options{}, Args{Source: `@error "foo";`}, false},
 	} {
 
 		test := test
@@ -123,6 +124,43 @@ body
 		})
 
 	}
+}
+
+func TestDebugWarn(t *testing.T) {
+	c := qt.New(t)
+
+	args := Args{
+		Source: `
+$color: #333;
+body {
+	  color: $color;
+}
+
+ @debug "foo";
+@warn "bar";
+
+`,
+	}
+
+	var events []LogEvent
+	eventHandler := func(e LogEvent) {
+		events = append(events, e)
+	}
+
+	opts := Options{
+		LogEventHandler: eventHandler,
+	}
+
+	transpiler, clean := newTestTranspiler(c, opts)
+	defer clean()
+	result, err := transpiler.Execute(args)
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(result.CSS, qt.Equals, "body {\n  color: #333;\n}")
+	c.Assert(events, qt.DeepEquals, []LogEvent{
+		{Type: 2, Message: "stdin:6:1: foo"},
+		{Type: 0, Message: "bar"},
+	})
 }
 
 func TestIncludePaths(t *testing.T) {

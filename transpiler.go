@@ -339,7 +339,29 @@ func (t *Transpiler) input() {
 				},
 			)
 		case *embeddedsass.OutboundMessage_LogEvent_:
-			// Drop these for now.
+			if t.opts.LogEventHandler != nil {
+				var logEvent LogEvent
+				e := c.LogEvent
+				if e.Span != nil {
+					url := e.Span.Url
+					if url == "" {
+						url = "stdin"
+					}
+					logEvent = LogEvent{
+						Type:    LogEventType(e.Type),
+						Message: fmt.Sprintf("%s:%d:%d: %s", url, e.Span.Start.Line, e.Span.Start.Column, c.LogEvent.GetMessage()),
+					}
+				} else {
+					logEvent = LogEvent{
+						Type:    LogEventType(e.Type),
+						Message: e.GetMessage(),
+					}
+				}
+
+				t.opts.LogEventHandler(logEvent)
+
+			}
+
 		case *embeddedsass.OutboundMessage_Error:
 			err = fmt.Errorf("SASS error: %s", c.Error.GetMessage())
 		default:

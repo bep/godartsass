@@ -24,6 +24,32 @@ type Options struct {
 	// as running this code against the beta5 binary would hang
 	// on Execute.
 	Timeout time.Duration
+
+	// LogEventHandler will, if set, receive log events from Dart Sass,
+	// e.g. @debug and @warn log statements.
+	LogEventHandler func(LogEvent)
+}
+
+// LogEvent is a type of log event from Dart Sass.
+type LogEventType int
+
+const (
+	// Usually triggered by the @warn directive.
+	LogEventTypeWarning LogEventType = iota
+
+	// Events trigered for usage of deprecated Sass features.
+	LogEventTypeDeprecated
+
+	// Triggered by the @debug directive.
+	LogEventTypeDebug
+)
+
+type LogEvent struct {
+	// Type is the type of log event.
+	Type LogEventType
+
+	// Message on the form url:line:col message.
+	Message string
 }
 
 func (opts *Options) init() error {
