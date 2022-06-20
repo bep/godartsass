@@ -117,7 +117,7 @@ body
 			} else {
 				expectedResult := test.expect.(Result)
 				c.Assert(err, qt.IsNil)
-				//printJSON(result.SourceMap)
+				// printJSON(result.SourceMap)
 				c.Assert(result, qt.Equals, expectedResult)
 
 			}
@@ -175,11 +175,11 @@ func TestIncludePaths(t *testing.T) {
 
 	ioutil.WriteFile(colors, []byte(`
 $moo:       #f442d1 !default;
-`), 0644)
+`), 0o644)
 
 	ioutil.WriteFile(content, []byte(`
 content { color: #ccc; }
-`), 0644)
+`), 0o644)
 
 	c := qt.New(t)
 	src := `
@@ -199,7 +199,6 @@ div { p { color: $moo; } }`
 	)
 	c.Assert(err, qt.IsNil)
 	c.Assert(result.CSS, qt.Equals, "content{color:#ccc}div p{color:#f442d1}")
-
 }
 
 func TestTranspilerParallel(t *testing.T) {
@@ -234,12 +233,10 @@ func TestTranspilerParallelImportResolver(t *testing.T) {
 	c := qt.New(t)
 
 	createImportResolver := func(width int) ImportResolver {
-
 		return testImportResolver{
 			name:    "widths",
 			content: fmt.Sprintf(`$width:  %d`, width),
 		}
-
 	}
 
 	transpiler, clean := newTestTranspiler(c, Options{})
@@ -253,7 +250,6 @@ func TestTranspilerParallelImportResolver(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < 10; j++ {
-
 				for k := 0; k < 20; k++ {
 					args := Args{
 						OutputStyle:    OutputStyleCompressed,
@@ -276,7 +272,6 @@ div { p { width: $width; } }`,
 	}
 
 	wg.Wait()
-
 }
 
 func TestTranspilerClose(t *testing.T) {
@@ -408,7 +403,6 @@ func TestHasScheme(t *testing.T) {
 	c.Assert(hasScheme("http://foo"), qt.Equals, true)
 	c.Assert(hasScheme("123:foo"), qt.Equals, false)
 	c.Assert(hasScheme("foo"), qt.Equals, false)
-
 }
 
 func newTestTranspiler(c *qt.C, opts Options) (*Transpiler, func()) {
@@ -437,5 +431,4 @@ func printJSON(s string) {
 	json.Unmarshal([]byte(s), &m)
 	b, _ := json.MarshalIndent(m, "", "  ")
 	fmt.Printf("%s", b)
-
 }

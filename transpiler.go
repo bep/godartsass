@@ -11,13 +11,12 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path"
-	"strings"
-	"time"
-
 	"os"
 	"os/exec"
+	"path"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/cli/safeexec"
 
