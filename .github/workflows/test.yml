@@ -3,38 +3,40 @@ on:
     branches: [ main ]
   pull_request:
 name: Test
+env:
+  DART_SASS_VERSION: 1.56.1
 jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.17.x, 1.18.x]
+        go-version: [~1.18, ~1.19]
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Install Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
         go-version: ${{ matrix.go-version }}
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
     - name: Install dart-sass-embedded Linux
       if: matrix.os == 'ubuntu-latest'
       run: |
-        curl -LJO https://github.com/sass/dart-sass-embedded/releases/download/1.0.0-beta.6/sass_embedded-1.0.0-beta.6-linux-x64.tar.gz;
-        tar -xvf sass_embedded-1.0.0-beta.6-linux-x64.tar.gz;
+        curl -LJO "https://github.com/sass/dart-sass-embedded/releases/download/${DART_SASS_VERSION}/sass_embedded-${DART_SASS_VERSION}-linux-x64.tar.gz";
+        tar -xvf "sass_embedded-${DART_SASS_VERSION}-linux-x64.tar.gz";
         echo "DART_SASS_EMBEDDED_BINARY=$GITHUB_WORKSPACE/sass_embedded/dart-sass-embedded" >> $GITHUB_ENV
     - name: Install dart-sass-embedded MacOS
       if: matrix.os == 'macos-latest'
       run: |
-        curl -LJO https://github.com/sass/dart-sass-embedded/releases/download/1.0.0-beta.6/sass_embedded-1.0.0-beta.6-macos-x64.tar.gz;
-        tar -xvf sass_embedded-1.0.0-beta.6-macos-x64.tar.gz;
+        curl -LJO "https://github.com/sass/dart-sass-embedded/releases/download/${DART_SASS_VERSION}/sass_embedded-${DART_SASS_VERSION}-macos-x64.tar.gz";
+        tar -xvf "sass_embedded-${DART_SASS_VERSION}-macos-x64.tar.gz";
         echo "DART_SASS_EMBEDDED_BINARY=$GITHUB_WORKSPACE/sass_embedded/dart-sass-embedded" >> $GITHUB_ENV
     - name: Install dart-sass-embedded Windows
       if: matrix.os == 'windows-latest'
       run: |
-        curl -LJO https://github.com/sass/dart-sass-embedded/releases/download/1.0.0-beta.6/sass_embedded-1.0.0-beta.6-windows-x64.zip;
-        unzip sass_embedded-1.0.0-beta.6-windows-x64.zip;
-        echo  "DART_SASS_EMBEDDED_BINARY=$env:GITHUB_WORKSPACE/sass_embedded/dart-sass-embedded.bat" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf-8 -Append
+        curl -LJO "https://github.com/sass/dart-sass-embedded/releases/download/${env:DART_SASS_VERSION}/sass_embedded-${env:DART_SASS_VERSION}-windows-x64.zip";
+        Expand-Archive -Path "sass_embedded-${env:DART_SASS_VERSION}-windows-x64.zip" -DestinationPath .;
+        echo "DART_SASS_EMBEDDED_BINARY=$env:GITHUB_WORKSPACE/sass_embedded/dart-sass-embedded.bat" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf-8 -Append
     - name: Test
       run: go test -race . -coverprofile=coverage.txt -covermode=atomic
     - name: Upload coverage

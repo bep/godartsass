@@ -85,7 +85,7 @@ func (c conn) waitWithTimeout() error {
 			}
 		}
 		return err
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		return errors.New("timed out waiting for dart-sass-embedded to finish")
 	}
 }
