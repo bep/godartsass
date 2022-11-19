@@ -89,7 +89,7 @@ body
 			OutputStyle:  OutputStyleCompressed,
 			SourceSyntax: SourceSyntaxSASS,
 		}, Result{CSS: "body{font:100% Helvetica,sans-serif;color:#333}"}},
-		{"Import resolver with source map", Options{}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true, ImportResolver: colorsResolver}, Result{CSS: "div p {\n  color: #ffff;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///mycolors/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
+		{"Import resolver with source map", Options{}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true, ImportResolver: colorsResolver}, Result{CSS: "div p {\n  color: white;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///mycolors/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
 
 		// Error cases
 		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
