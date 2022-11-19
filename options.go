@@ -106,6 +106,9 @@ type Args struct {
 	// If enabled, a sourcemap will be generated and returned in Result.
 	EnableSourceMap bool
 
+	// If enabled, sources will be embedded in the generated source map.
+	SourceMapIncludeSources bool
+
 	// Custom resolver to use to resolve imports.
 	// If set, this will be the first in the resolver chain.
 	ImportResolver ImportResolver

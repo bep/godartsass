@@ -162,7 +162,8 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 						Url:    args.URL,
 					},
 				},
-				SourceMap: args.EnableSourceMap,
+				SourceMap:               args.EnableSourceMap,
+				SourceMapIncludeSources: args.SourceMapIncludeSources,
 			},
 		}
 

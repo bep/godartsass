@@ -78,6 +78,7 @@ func TestTranspilerVariants(t *testing.T) {
 	}{
 		{"Output style compressed", Options{}, Args{Source: "div { color: #ccc; }", OutputStyle: OutputStyleCompressed}, Result{CSS: "div{color:#ccc}"}},
 		{"Enable Source Map", Options{}, Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: OutputStyleCompressed, EnableSourceMap: true}, Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\"}"}},
+		{"Enable Source Map with sources", Options{}, Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: OutputStyleCompressed, EnableSourceMap: true, SourceMapIncludeSources: true}, Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\",\"sourcesContent\":[\"div{color:blue;}\"]}"}},
 		{"Sass syntax", Options{}, Args{
 			Source: `$font-stack:    Helvetica, sans-serif
 $primary-color: #333
