@@ -406,6 +406,16 @@ func TestHasScheme(t *testing.T) {
 	c.Assert(hasScheme("foo"), qt.Equals, false)
 }
 
+func TestVersion(t *testing.T) {
+	c := qt.New(t)
+
+	version, err := Version(getSassEmbeddedFilename())
+	c.Assert(err, qt.IsNil)
+	c.Assert(version, qt.Not(qt.Equals), "")
+	c.Assert(version.ProtocolVersion, qt.Equals, "1.1.0")
+
+}
+
 func newTestTranspiler(c *qt.C, opts Options) (*Transpiler, func()) {
 	opts.DartSassEmbeddedFilename = getSassEmbeddedFilename()
 	transpiler, err := Start(opts)
