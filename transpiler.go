@@ -72,6 +72,39 @@ func Start(opts Options) (*Transpiler, error) {
 	return t, nil
 }
 
+// Version returns version information about the Dart Sass frameworks used
+// in dartSassEmbeddedFilename.
+func Version(dartSassEmbeddedFilename string) (DartSassVersion, error) {
+	var v DartSassVersion
+	bin, err := safeexec.LookPath(dartSassEmbeddedFilename)
+	if err != nil {
+		return v, err
+	}
+
+	cmd := exec.Command(bin, "--version")
+	cmd.Stderr = os.Stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		return v, err
+	}
+
+	if err := json.Unmarshal(out, &v); err != nil {
+		return v, err
+	}
+
+	return v, nil
+
+}
+
+type DartSassVersion struct {
+	ProtocolVersion       string `json:"protocolVersion"`
+	CompilerVersion       string `json:"compilerVersion"`
+	ImplementationVersion string `json:"implementationVersion"`
+	ImplementationName    string `json:"implementationName"`
+	ID                    int    `json:"id"`
+}
+
 // Transpiler controls transpiling of SCSS into CSS.
 type Transpiler struct {
 	opts Options
