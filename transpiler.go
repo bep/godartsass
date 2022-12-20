@@ -423,8 +423,8 @@ func (t *Transpiler) input() {
 			var message embeddedsass.InboundMessage
 			response := &Response{Id: c.FunctionCallRequest.Id}
 			message.Message = &Response_{FunctionCallResponse: response}
-			if function, ok := t.functionMap[name]; ok {
-				if result, err := function.Callback(c.FunctionCallRequest.Arguments); err != nil {
+			if definition, ok := t.functionMap[name]; ok {
+				if result, err := definition.Callback(c.FunctionCallRequest.Arguments); err != nil {
 					response.Result = &Error{Error: err.Error()}
 				} else {
 					response.Result = &Success{Success: result}
