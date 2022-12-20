@@ -11,8 +11,8 @@ import (
 
 // UserDefinedFunction The is user-defined function expose definition
 type UserDefinedFunction struct {
-	// Signatures The is method parameter name list
-	Signatures []string
+	// Parameters The is method parameter name list
+	Parameters []string
 	// Callback The is method implementation
 	Callback func([]*embeddedsass.Value) (*embeddedsass.Value, error)
 }

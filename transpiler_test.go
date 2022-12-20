@@ -176,7 +176,7 @@ func TestFunction(t *testing.T) {
 	transpiler, clean := newTestTranspiler(c, Options{
 		FunctionMap: map[string]UserDefinedFunction{
 			"hugo-get": {
-				Signatures: []string{"$name"},
+				Parameters: []string{"$name"},
 				Callback: func(values []*embeddedsass.Value) (*embeddedsass.Value, error) {
 					type Value = embeddedsass.Value
 					type String_ = embeddedsass.Value_String_

@@ -193,7 +193,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 
 		var signatures []string
 		for name, definition := range t.functionMap {
-			parameters := strings.Join(definition.Signatures, ", ")
+			parameters := strings.Join(definition.Parameters, ", ")
 			signatures = append(signatures, fmt.Sprintf("%s(%s)", name, parameters))
 		}
 
