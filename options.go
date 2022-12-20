@@ -9,6 +9,14 @@ import (
 	"github.com/bep/godartsass/internal/embeddedsass"
 )
 
+// UserDefinedFunction The is user-defined function expose definition
+type UserDefinedFunction struct {
+	// Signatures The is method parameter name list
+	Signatures []string
+	// Callback The is method implementation
+	Callback func([]*embeddedsass.Value) (*embeddedsass.Value, error)
+}
+
 // Options configures a Transpiler.
 type Options struct {
 	// The path to the Dart Sass wrapper binary, an absolute filename
@@ -28,6 +36,9 @@ type Options struct {
 	// LogEventHandler will, if set, receive log events from Dart Sass,
 	// e.g. @debug and @warn log statements.
 	LogEventHandler func(LogEvent)
+
+	// FunctionMap user-defined function in sass compile
+	FunctionMap map[string]UserDefinedFunction
 }
 
 // LogEvent is a type of log event from Dart Sass.
