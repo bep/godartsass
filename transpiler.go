@@ -67,7 +67,7 @@ func Start(opts Options) (*Transpiler, error) {
 		pending: make(map[uint32]*call),
 	}
 	if t.fnRegistry, err = NewFunctionRegistry(opts.FunctionMap); err != nil {
-		return
+		return nil, err
 	}
 
 	go t.input()
