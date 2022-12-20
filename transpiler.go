@@ -31,7 +31,7 @@ const defaultDartSassEmbeddedFilename = "dart-sass-embedded"
 var ErrShutdown = errors.New("connection is shut down")
 
 // Start creates and starts a new SCSS transpiler that communicates with the
-// Dass Sass Embedded protocol via Stdin and Stdout.
+// Dart Sass Embedded protocol via Stdin and Stdout.
 //
 // Closing the transpiler will shut down the process.
 //
@@ -65,6 +65,9 @@ func Start(opts Options) (*Transpiler, error) {
 		conn:    conn,
 		lenBuf:  make([]byte, binary.MaxVarintLen64),
 		pending: make(map[uint32]*call),
+	}
+	if t.fnRegistry, err = NewFunctionRegistry(opts.FunctionMap); err != nil {
+		return nil, err
 	}
 
 	go t.input()
@@ -123,6 +126,8 @@ type Transpiler struct {
 	mu      sync.Mutex // Protects all below.
 	seq     uint32
 	pending map[uint32]*call
+
+	fnRegistry *FunctionRegistry
 }
 
 // Result holds the result returned from Execute.
@@ -174,14 +179,14 @@ func (t *Transpiler) Close() error {
 }
 
 // Execute transpiles the string Source given in Args into CSS.
-// If Dart Sass resturns a "compile failure", the error returned will be
+// If Dart Sass returns a "compile failure", the error returned will be
 // of type SassError.
 func (t *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
 
-	createInboundMessage := func(seq uint32) (*embeddedsass.InboundMessage, error) {
-		if err := args.init(seq, t.opts); err != nil {
-			return nil, err
+	createInboundMessage := func(seq uint32) (inbound *embeddedsass.InboundMessage, err error) {
+		if err = args.init(seq, t.opts); err != nil {
+			return
 		}
 
 		message := &embeddedsass.InboundMessage_CompileRequest_{
@@ -197,12 +202,12 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 				},
 				SourceMap:               args.EnableSourceMap,
 				SourceMapIncludeSources: args.SourceMapIncludeSources,
+				GlobalFunctions:         t.fnRegistry.signatures,
 			},
 		}
 
-		return &embeddedsass.InboundMessage{
-			Message: message,
-		}, nil
+		inbound = &embeddedsass.InboundMessage{Message: message}
+		return
 	}
 
 	call, err := t.newCall(createInboundMessage, args)
@@ -398,6 +403,12 @@ func (t *Transpiler) input() {
 
 		case *embeddedsass.OutboundMessage_Error:
 			err = fmt.Errorf("SASS error: %s", c.Error.GetMessage())
+		case *embeddedsass.OutboundMessage_FunctionCallRequest_:
+			var message embeddedsass.InboundMessage
+			message.Message = &embeddedsass.InboundMessage_FunctionCallResponse_{
+				FunctionCallResponse: t.fnRegistry.execute(c.FunctionCallRequest),
+			}
+			err = t.sendInboundMessage(&message)
 		default:
 			err = fmt.Errorf("unsupported response message type. %T", msg.Message)
 		}

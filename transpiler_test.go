@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/bep/godartsass/internal/embeddedsass"
 	qt "github.com/frankban/quicktest"
 )
 
@@ -100,7 +101,7 @@ body
 		{"Error in ImportResolver.Load", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnLoad: true}}, false},
 		{"Invalid OutputStyle", Options{}, Args{Source: "a", OutputStyle: "asdf"}, false},
 		{"Invalid SourceSyntax", Options{}, Args{Source: "a", SourceSyntax: "asdf"}, false},
-		{"Erro logging", Options{}, Args{Source: `@error "foo";`}, false},
+		{"Error logging", Options{}, Args{Source: `@error "foo";`}, false},
 	} {
 
 		test := test
@@ -163,6 +164,30 @@ body {
 		{Type: 2, Message: "/a/b/c.scss:6:1: foo"},
 		{Type: 0, Message: "bar"},
 	})
+}
+
+func TestFunction(t *testing.T) {
+	c := qt.New(t)
+
+	args := Args{
+		URL:    "/a/b/c.scss",
+		Source: `.example { background-image: hugo-get("asset filename"); }`,
+	}
+	transpiler, clean := newTestTranspiler(c, Options{
+		FunctionMap: map[string]CustomFunction{
+			"hugo-get($name)": func(values []*embeddedsass.Value) (*embeddedsass.Value, error) {
+				type Value = embeddedsass.Value
+				type String_ = embeddedsass.Value_String_
+				type String = embeddedsass.Value_String
+				result := &Value{Value: &String_{String_: &String{Text: "url(permalink)"}}}
+				return result, nil
+			},
+		},
+	})
+	defer clean()
+	result, err := transpiler.Execute(args)
+	c.Assert(err, qt.IsNil)
+	c.Assert(result.CSS, qt.Equals, ".example {\n  background-image: url(permalink);\n}")
 }
 
 func TestIncludePaths(t *testing.T) {

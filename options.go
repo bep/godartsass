@@ -28,6 +28,9 @@ type Options struct {
 	// LogEventHandler will, if set, receive log events from Dart Sass,
 	// e.g. @debug and @warn log statements.
 	LogEventHandler func(LogEvent)
+
+	// FunctionMap user-defined function in sass compile
+	FunctionMap map[string]CustomFunction
 }
 
 // LogEvent is a type of log event from Dart Sass.
