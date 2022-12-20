@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/bep/godartsass/internal/embeddedsass"
+	"github.com/bep/godartsass/functions"
 	qt "github.com/frankban/quicktest"
 )
 
@@ -171,23 +171,20 @@ func TestFunction(t *testing.T) {
 
 	args := Args{
 		URL:    "/a/b/c.scss",
-		Source: `.example { background-image: hugo-get("asset filename"); }`,
+		Source: `.example { $variable: "example"; background-image: hugo-get($variable); }`,
 	}
 	transpiler, clean := newTestTranspiler(c, Options{
-		FunctionMap: map[string]CustomFunction{
-			"hugo-get($name)": func(values []*embeddedsass.Value) (*embeddedsass.Value, error) {
-				type Value = embeddedsass.Value
-				type String_ = embeddedsass.Value_String_
-				type String = embeddedsass.Value_String
-				result := &Value{Value: &String_{String_: &String{Text: "url(permalink)"}}}
-				return result, nil
+		FunctionMap: map[string]interface{}{
+			"hugo-get($name)": func(name string) (result functions.Identifier, err error) {
+				result = functions.Identifier(fmt.Sprintf("url(%q)", name))
+				return
 			},
 		},
 	})
 	defer clean()
 	result, err := transpiler.Execute(args)
 	c.Assert(err, qt.IsNil)
-	c.Assert(result.CSS, qt.Equals, ".example {\n  background-image: url(permalink);\n}")
+	c.Assert(result.CSS, qt.Equals, ".example {\n  background-image: url(\"example\");\n}")
 }
 
 func TestIncludePaths(t *testing.T) {
@@ -437,7 +434,7 @@ func TestVersion(t *testing.T) {
 	version, err := Version(getSassEmbeddedFilename())
 	c.Assert(err, qt.IsNil)
 	c.Assert(version, qt.Not(qt.Equals), "")
-	c.Assert(version.ProtocolVersion, qt.Equals, "1.1.0")
+	c.Assert(version.ProtocolVersion, qt.Equals, "1.2.0")
 
 }
 

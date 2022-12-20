@@ -30,7 +30,7 @@ type Options struct {
 	LogEventHandler func(LogEvent)
 
 	// FunctionMap user-defined function in sass compile
-	FunctionMap map[string]CustomFunction
+	FunctionMap map[string]interface{}
 }
 
 // LogEvent is a type of log event from Dart Sass.

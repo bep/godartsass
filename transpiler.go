@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bep/godartsass/functions"
 	"github.com/cli/safeexec"
 
 	"github.com/bep/godartsass/internal/embeddedsass"
@@ -66,7 +67,7 @@ func Start(opts Options) (*Transpiler, error) {
 		lenBuf:  make([]byte, binary.MaxVarintLen64),
 		pending: make(map[uint32]*call),
 	}
-	if t.fnRegistry, err = NewFunctionRegistry(opts.FunctionMap); err != nil {
+	if t.fnRegistry, err = functions.NewFunctionRegistry(opts.FunctionMap); err != nil {
 		return nil, err
 	}
 
@@ -127,7 +128,7 @@ type Transpiler struct {
 	seq     uint32
 	pending map[uint32]*call
 
-	fnRegistry *FunctionRegistry
+	fnRegistry *functions.FunctionRegistry
 }
 
 // Result holds the result returned from Execute.
@@ -202,7 +203,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 				},
 				SourceMap:               args.EnableSourceMap,
 				SourceMapIncludeSources: args.SourceMapIncludeSources,
-				GlobalFunctions:         t.fnRegistry.signatures,
+				GlobalFunctions:         t.fnRegistry.SignatureNames(),
 			},
 		}
 
@@ -406,7 +407,7 @@ func (t *Transpiler) input() {
 		case *embeddedsass.OutboundMessage_FunctionCallRequest_:
 			var message embeddedsass.InboundMessage
 			message.Message = &embeddedsass.InboundMessage_FunctionCallResponse_{
-				FunctionCallResponse: t.fnRegistry.execute(c.FunctionCallRequest),
+				FunctionCallResponse: t.fnRegistry.Execute(c.FunctionCallRequest),
 			}
 			err = t.sendInboundMessage(&message)
 		default:
