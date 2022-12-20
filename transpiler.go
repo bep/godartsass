@@ -188,16 +188,13 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 
 	createInboundMessage := func(seq uint32) (inbound *embeddedsass.InboundMessage, err error) {
 		if err = args.init(seq, t.opts); err != nil {
-			return nil, err
+			return
 		}
 
 		var signatures []string
 		for name, definition := range t.functionMap {
 			parameters := strings.Join(definition.Signatures, ", ")
-			signatures = append(
-				signatures,
-				fmt.Sprintf("%s(%s)", name, parameters),
-			)
+			signatures = append(signatures, fmt.Sprintf("%s(%s)", name, parameters))
 		}
 
 		message := &embeddedsass.InboundMessage_CompileRequest_{
