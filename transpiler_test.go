@@ -174,16 +174,13 @@ func TestFunction(t *testing.T) {
 		Source: `.example { background-image: hugo-get("asset filename"); }`,
 	}
 	transpiler, clean := newTestTranspiler(c, Options{
-		FunctionMap: map[string]UserDefinedFunction{
-			"hugo-get": {
-				Parameters: []string{"$name"},
-				Callback: func(values []*embeddedsass.Value) (*embeddedsass.Value, error) {
-					type Value = embeddedsass.Value
-					type String_ = embeddedsass.Value_String_
-					type String = embeddedsass.Value_String
-					result := &Value{Value: &String_{String_: &String{Text: "url(permalink)"}}}
-					return result, nil
-				},
+		FunctionMap: map[string]CustomFunction{
+			"hugo-get($name)": func(values []*embeddedsass.Value) (*embeddedsass.Value, error) {
+				type Value = embeddedsass.Value
+				type String_ = embeddedsass.Value_String_
+				type String = embeddedsass.Value_String
+				result := &Value{Value: &String_{String_: &String{Text: "url(permalink)"}}}
+				return result, nil
 			},
 		},
 	})

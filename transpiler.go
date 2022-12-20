@@ -61,15 +61,13 @@ func Start(opts Options) (*Transpiler, error) {
 	}
 
 	t := &Transpiler{
-		opts:        opts,
-		conn:        conn,
-		lenBuf:      make([]byte, binary.MaxVarintLen64),
-		pending:     make(map[uint32]*call),
-		functionMap: opts.FunctionMap,
+		opts:    opts,
+		conn:    conn,
+		lenBuf:  make([]byte, binary.MaxVarintLen64),
+		pending: make(map[uint32]*call),
 	}
-
-	if t.functionMap == nil {
-		t.functionMap = make(map[string]UserDefinedFunction, 0)
+	if t.fnRegistry, err = NewFunctionRegistry(opts.FunctionMap); err != nil {
+		return
 	}
 
 	go t.input()
@@ -129,7 +127,7 @@ type Transpiler struct {
 	seq     uint32
 	pending map[uint32]*call
 
-	functionMap map[string]UserDefinedFunction
+	fnRegistry *FunctionRegistry
 }
 
 // Result holds the result returned from Execute.
@@ -191,12 +189,6 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 			return
 		}
 
-		var signatures []string
-		for name, definition := range t.functionMap {
-			parameters := strings.Join(definition.Parameters, ", ")
-			signatures = append(signatures, fmt.Sprintf("%s(%s)", name, parameters))
-		}
-
 		message := &embeddedsass.InboundMessage_CompileRequest_{
 			CompileRequest: &embeddedsass.InboundMessage_CompileRequest{
 				Importers: args.sassImporters,
@@ -210,7 +202,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 				},
 				SourceMap:               args.EnableSourceMap,
 				SourceMapIncludeSources: args.SourceMapIncludeSources,
-				GlobalFunctions:         signatures,
+				GlobalFunctions:         t.fnRegistry.signatures,
 			},
 		}
 
@@ -412,22 +404,9 @@ func (t *Transpiler) input() {
 		case *embeddedsass.OutboundMessage_Error:
 			err = fmt.Errorf("SASS error: %s", c.Error.GetMessage())
 		case *embeddedsass.OutboundMessage_FunctionCallRequest_:
-			type Response_ = embeddedsass.InboundMessage_FunctionCallResponse_
-			type Response = embeddedsass.InboundMessage_FunctionCallResponse
-			type Error = embeddedsass.InboundMessage_FunctionCallResponse_Error
-			type Success = embeddedsass.InboundMessage_FunctionCallResponse_Success
-			name := c.FunctionCallRequest.GetName()
 			var message embeddedsass.InboundMessage
-			response := &Response{Id: c.FunctionCallRequest.Id}
-			message.Message = &Response_{FunctionCallResponse: response}
-			if definition, ok := t.functionMap[name]; ok {
-				if result, err := definition.Callback(c.FunctionCallRequest.Arguments); err != nil {
-					response.Result = &Error{Error: err.Error()}
-				} else {
-					response.Result = &Success{Success: result}
-				}
-			} else {
-				response.Result = &Error{Error: fmt.Sprintf("%q not found", name)}
+			message.Message = &embeddedsass.InboundMessage_FunctionCallResponse_{
+				FunctionCallResponse: t.fnRegistry.execute(c.FunctionCallRequest),
 			}
 			err = t.sendInboundMessage(&message)
 		default:
