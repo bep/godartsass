@@ -20,11 +20,11 @@ import (
 
 	"github.com/cli/safeexec"
 
-	"github.com/bep/godartsass/internal/embeddedsass"
+	"github.com/bep/godartsass/v2/internal/embeddedsass"
 	"google.golang.org/protobuf/proto"
 )
 
-const defaultDartSassEmbeddedFilename = "dart-sass-embedded"
+const defaultDartSassBinaryFilename = "sass"
 
 // ErrShutdown will be returned from Execute and Close if the transpiler is or
 // is about to be shut down.
@@ -47,8 +47,8 @@ func Start(opts Options) (*Transpiler, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	cmd := exec.Command(bin)
+	cmd.Args = append(cmd.Args, "--embedded")
 	cmd.Stderr = os.Stderr
 
 	conn, err := newConn(cmd)
@@ -64,6 +64,7 @@ func Start(opts Options) (*Transpiler, error) {
 		opts:    opts,
 		conn:    conn,
 		lenBuf:  make([]byte, binary.MaxVarintLen64),
+		idBuf:   make([]byte, binary.MaxVarintLen64),
 		pending: make(map[uint32]*call),
 	}
 
@@ -81,7 +82,7 @@ func Version(dartSassEmbeddedFilename string) (DartSassVersion, error) {
 		return v, err
 	}
 
-	cmd := exec.Command(bin, "--version")
+	cmd := exec.Command(bin, "--embedded", "--version")
 	cmd.Stderr = os.Stderr
 
 	out, err := cmd.Output()
@@ -94,7 +95,6 @@ func Version(dartSassEmbeddedFilename string) (DartSassVersion, error) {
 	}
 
 	return v, nil
-
 }
 
 type DartSassVersion struct {
@@ -112,6 +112,7 @@ type Transpiler struct {
 	// stdin/stdout of the Dart Sass protocol
 	conn   byteReadWriteCloser
 	lenBuf []byte
+	idBuf  []byte
 	msgBuf []byte
 
 	closing  bool
@@ -181,6 +182,13 @@ func (t *Transpiler) Close() error {
 	t.closing = true
 	err := t.conn.Close()
 
+	if eerr, ok := err.(*exec.ExitError); ok {
+		if eerr.ExitCode() == 1 {
+			// This is the expected exit code when shutting down.
+			return ErrShutdown
+		}
+	}
+
 	return err
 }
 
@@ -224,7 +232,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 	select {
 	case call = <-call.Done:
 	case <-time.After(t.opts.Timeout):
-		return result, errors.New("timeout waiting for Dart Sass to respond; if you're running with Embedded Sass protocol < beta6, you need to upgrade")
+		return result, errors.New("timeout waiting for Dart Sass to respond; note that this project is only compatible with the Dart Sass Binary found here: https://github.com/sass/dart-sass/releases/")
 	}
 
 	if call.Error != nil {
@@ -270,8 +278,9 @@ func (t *Transpiler) input() {
 	var err error
 
 	for err == nil {
-		// The header is the length in bytes of the remaining message.
+		// The header is the length in bytes of the remaining message including the compilation ID.
 		var l uint64
+
 		l, err = binary.ReadUvarint(t.conn)
 		if err != nil {
 			break
@@ -289,6 +298,14 @@ func (t *Transpiler) input() {
 			break
 		}
 
+		v, n := binary.Uvarint(buf)
+		if n <= 0 {
+			break
+		}
+		compilationID := uint32(v)
+
+		buf = buf[n:]
+
 		var msg embeddedsass.OutboundMessage
 
 		if err = proto.Unmarshal(buf, &msg); err != nil {
@@ -297,20 +314,19 @@ func (t *Transpiler) input() {
 
 		switch c := msg.Message.(type) {
 		case *embeddedsass.OutboundMessage_CompileResponse_:
-			id := c.CompileResponse.Id
 			// Attach it to the correct pending call.
 			t.mu.Lock()
-			call := t.pending[id]
-			delete(t.pending, id)
+			call := t.pending[compilationID]
+			delete(t.pending, compilationID)
 			t.mu.Unlock()
 			if call == nil {
-				err = fmt.Errorf("call with ID %d not found", id)
+				err = fmt.Errorf("call with ID %d not found", compilationID)
 				break
 			}
 			call.Response = &msg
 			call.done()
 		case *embeddedsass.OutboundMessage_CanonicalizeRequest_:
-			call := t.getCall(c.CanonicalizeRequest.CompilationId)
+			call := t.getCall(compilationID)
 			resolved, resolveErr := call.importResolver.CanonicalizeURL(c.CanonicalizeRequest.GetUrl())
 
 			var response *embeddedsass.InboundMessage_CanonicalizeResponse
@@ -335,6 +351,7 @@ func (t *Transpiler) input() {
 			}
 
 			err = t.sendInboundMessage(
+				compilationID,
 				&embeddedsass.InboundMessage{
 					Message: &embeddedsass.InboundMessage_CanonicalizeResponse_{
 						CanonicalizeResponse: response,
@@ -342,7 +359,7 @@ func (t *Transpiler) input() {
 				},
 			)
 		case *embeddedsass.OutboundMessage_ImportRequest_:
-			call := t.getCall(c.ImportRequest.CompilationId)
+			call := t.getCall(compilationID)
 			url := c.ImportRequest.GetUrl()
 			contents, loadErr := call.importResolver.Load(url)
 
@@ -369,13 +386,14 @@ func (t *Transpiler) input() {
 					Result: &embeddedsass.InboundMessage_ImportResponse_Success{
 						Success: &embeddedsass.InboundMessage_ImportResponse_ImportSuccess{
 							Contents:     contents,
-							SourceMapUrl: sourceMapURL,
+							SourceMapUrl: &sourceMapURL,
 						},
 					},
 				}
 			}
 
 			err = t.sendInboundMessage(
+				compilationID,
 				&embeddedsass.InboundMessage{
 					Message: &embeddedsass.InboundMessage_ImportResponse_{
 						ImportResponse: response,
@@ -437,9 +455,19 @@ func (t *Transpiler) input() {
 	}
 }
 
+func (t *Transpiler) nextSeq() uint32 {
+	t.seq++
+	// The compilation ID 0 is reserved for `VersionRequest` and `VersionResponse`,
+	// 4294967295 is reserved for error handling. This is the maximum number representable by a `uint32` so it should be safe to start over.
+	if t.seq == 0 || t.seq == 4294967295 {
+		t.seq = 1
+	}
+	return t.seq
+}
+
 func (t *Transpiler) newCall(createInbound func(seq uint32) (*embeddedsass.InboundMessage, error), args Args) (*call, error) {
 	t.mu.Lock()
-	id := t.seq
+	id := t.nextSeq()
 	req, err := createInbound(id)
 	if err != nil {
 		t.mu.Unlock()
@@ -460,21 +488,19 @@ func (t *Transpiler) newCall(createInbound func(seq uint32) (*embeddedsass.Inbou
 	}
 
 	t.pending[id] = call
-	t.seq++
 
 	t.mu.Unlock()
 
-	switch c := call.Request.Message.(type) {
+	switch call.Request.Message.(type) {
 	case *embeddedsass.InboundMessage_CompileRequest_:
-		c.CompileRequest.Id = id
 	default:
 		return nil, fmt.Errorf("unsupported request message type. %T", call.Request.Message)
 	}
 
-	return call, t.sendInboundMessage(call.Request)
+	return call, t.sendInboundMessage(id, call.Request)
 }
 
-func (t *Transpiler) sendInboundMessage(message *embeddedsass.InboundMessage) error {
+func (t *Transpiler) sendInboundMessage(compilationID uint32, message *embeddedsass.InboundMessage) error {
 	t.sendMu.Lock()
 	defer t.sendMu.Unlock()
 	t.mu.Lock()
@@ -490,19 +516,24 @@ func (t *Transpiler) sendInboundMessage(message *embeddedsass.InboundMessage) er
 	}
 
 	// Every message must begin with a varint indicating the length in bytes of
-	// the remaining message.
+	// the remaining message including the compilation ID
 	reqLen := uint64(len(out))
-
-	n := binary.PutUvarint(t.lenBuf, reqLen)
-	_, err = t.conn.Write(t.lenBuf[:n])
+	compilationIDLen := binary.PutUvarint(t.idBuf, uint64(compilationID))
+	headerLen := binary.PutUvarint(t.lenBuf, reqLen+uint64(compilationIDLen))
+	_, err = t.conn.Write(t.lenBuf[:headerLen])
+	if err != nil {
+		return err
+	}
+	_, err = t.conn.Write(t.idBuf[:compilationIDLen])
 	if err != nil {
 		return err
 	}
 
-	n, err = t.conn.Write(out)
-	if n != len(out) {
+	headerLen, err = t.conn.Write(out)
+	if headerLen != len(out) {
 		return errors.New("failed to write payload")
 	}
+
 	return err
 }
 
