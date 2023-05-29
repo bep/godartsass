@@ -72,7 +72,7 @@ func (c conn) Close() error {
 
 var brokenPipeRe = regexp.MustCompile("Broken pipe|pipe is being closed")
 
-// dart-sass-embedded ends on itself on EOF, this is just to give it some
+// dart-sass ends on itself on EOF, this is just to give it some
 // time to do so.
 func (c conn) waitWithTimeout() error {
 	result := make(chan error, 1)
@@ -86,7 +86,7 @@ func (c conn) waitWithTimeout() error {
 		}
 		return err
 	case <-time.After(5 * time.Second):
-		return errors.New("timed out waiting for dart-sass-embedded to finish")
+		return errors.New("timed out waiting for dart-sass to finish")
 	}
 }
 

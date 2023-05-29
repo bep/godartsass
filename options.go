@@ -6,17 +6,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bep/godartsass/internal/embeddedsass"
+	"github.com/bep/godartsass/v2/internal/embeddedsass"
 )
 
 // Options configures a Transpiler.
 type Options struct {
 	// The path to the Dart Sass wrapper binary, an absolute filename
 	// if not in $PATH.
-	// If this is not set, we will try 'dart-sass-embedded'
-	// (or 'dart-sass-embedded.bat' on Windows) in the OS $PATH.
+	// If this is not set, we will try 'dart-sass'
+	// (or 'dart-sass.bat' on Windows) in the OS $PATH.
 	// There may be several ways to install this, one would be to
-	// download it from here: https://github.com/sass/dart-sass-embedded/releases
+	// download it from here: https://github.com/sass/dart-sass/releases
 	DartSassEmbeddedFilename string
 
 	// Timeout is the duration allowed for dart sass to transpile.
@@ -54,7 +54,7 @@ type LogEvent struct {
 
 func (opts *Options) init() error {
 	if opts.DartSassEmbeddedFilename == "" {
-		opts.DartSassEmbeddedFilename = defaultDartSassEmbeddedFilename
+		opts.DartSassEmbeddedFilename = defaultDartSassBinaryFilename
 	}
 
 	if opts.Timeout == 0 {
@@ -94,7 +94,7 @@ type Args struct {
 	// See https://en.wikipedia.org/wiki/File_URI_scheme
 	//
 	// Note: There is an open issue for this value when combined with custom
-	// importers, see https://github.com/sass/dart-sass-embedded/issues/24
+	// importers, see https://github.com/sass/dart-sass/issues/24
 	URL string
 
 	// Defaults is SCSS.

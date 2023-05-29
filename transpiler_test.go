@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/bep/godartsass"
+	"github.com/bep/godartsass/v2"
 
 	qt "github.com/frankban/quicktest"
 )
@@ -104,7 +104,6 @@ body
 		{"Invalid SourceSyntax", godartsass.Options{}, godartsass.Args{Source: "a", SourceSyntax: "asdf"}, false},
 		{"Erro logging", godartsass.Options{}, godartsass.Args{Source: `@error "foo";`}, false},
 	} {
-
 		test := test
 		c.Run(test.name, func(c *qt.C) {
 			b, ok := test.expect.(bool)
@@ -403,8 +402,7 @@ func TestVersion(t *testing.T) {
 	version, err := godartsass.Version(getSassEmbeddedFilename())
 	c.Assert(err, qt.IsNil)
 	c.Assert(version, qt.Not(qt.Equals), "")
-	c.Assert(version.ProtocolVersion, qt.Equals, "1.1.0")
-
+	c.Assert(version.ProtocolVersion, qt.Equals, "2.0.0")
 }
 
 func newTestTranspiler(c *qt.C, opts godartsass.Options) (*godartsass.Transpiler, func()) {
@@ -419,12 +417,12 @@ func newTestTranspiler(c *qt.C, opts godartsass.Options) (*godartsass.Transpiler
 }
 
 func getSassEmbeddedFilename() string {
-	// https://github.com/sass/dart-sass-embedded/releases
-	if filename := os.Getenv("DART_SASS_EMBEDDED_BINARY"); filename != "" {
+	// https://github.com/sass/dart-sass/releases
+	if filename := os.Getenv("DART_SASS_BINARY"); filename != "" {
 		return filename
 	}
 
-	return "dart-sass-embedded"
+	return "sass"
 }
 
 // used for debugging
