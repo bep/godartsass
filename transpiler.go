@@ -125,6 +125,17 @@ type Transpiler struct {
 	pending map[uint32]*call
 }
 
+// IsShutDown checks if all pending calls have been shut down.
+// Used in tests.
+func (t *Transpiler) IsShutDown() bool {
+	for _, p := range t.pending {
+		if p.Error != ErrShutdown {
+			return false
+		}
+	}
+	return true
+}
+
 // Result holds the result returned from Execute.
 type Result struct {
 	CSS       string

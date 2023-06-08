@@ -1,4 +1,4 @@
-package godartsass
+package godartsass_test
 
 import (
 	"encoding/json"
@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/bep/godartsass"
 
 	qt "github.com/frankban/quicktest"
 )
@@ -72,14 +74,14 @@ func TestTranspilerVariants(t *testing.T) {
 
 	for _, test := range []struct {
 		name   string
-		opts   Options
-		args   Args
+		opts   godartsass.Options
+		args   godartsass.Args
 		expect interface{}
 	}{
-		{"Output style compressed", Options{}, Args{Source: "div { color: #ccc; }", OutputStyle: OutputStyleCompressed}, Result{CSS: "div{color:#ccc}"}},
-		{"Enable Source Map", Options{}, Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: OutputStyleCompressed, EnableSourceMap: true}, Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\"}"}},
-		{"Enable Source Map with sources", Options{}, Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: OutputStyleCompressed, EnableSourceMap: true, SourceMapIncludeSources: true}, Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\",\"sourcesContent\":[\"div{color:blue;}\"]}"}},
-		{"Sass syntax", Options{}, Args{
+		{"Output style compressed", godartsass.Options{}, godartsass.Args{Source: "div { color: #ccc; }", OutputStyle: godartsass.OutputStyleCompressed}, godartsass.Result{CSS: "div{color:#ccc}"}},
+		{"Enable Source Map", godartsass.Options{}, godartsass.Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: godartsass.OutputStyleCompressed, EnableSourceMap: true}, godartsass.Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\"}"}},
+		{"Enable Source Map with sources", godartsass.Options{}, godartsass.Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: godartsass.OutputStyleCompressed, EnableSourceMap: true, SourceMapIncludeSources: true}, godartsass.Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\",\"sourcesContent\":[\"div{color:blue;}\"]}"}},
+		{"Sass syntax", godartsass.Options{}, godartsass.Args{
 			Source: `$font-stack:    Helvetica, sans-serif
 $primary-color: #333
 
@@ -87,20 +89,20 @@ body
   font: 100% $font-stack
   color: $primary-color
 `,
-			OutputStyle:  OutputStyleCompressed,
-			SourceSyntax: SourceSyntaxSASS,
-		}, Result{CSS: "body{font:100% Helvetica,sans-serif;color:#333}"}},
-		{"Import resolver with source map", Options{}, Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true, ImportResolver: colorsResolver}, Result{CSS: "div p {\n  color: white;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///mycolors/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
+			OutputStyle:  godartsass.OutputStyleCompressed,
+			SourceSyntax: godartsass.SourceSyntaxSASS,
+		}, godartsass.Result{CSS: "body{font:100% Helvetica,sans-serif;color:#333}"}},
+		{"Import resolver with source map", godartsass.Options{}, godartsass.Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true, ImportResolver: colorsResolver}, godartsass.Result{CSS: "div p {\n  color: white;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///mycolors/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
 
 		// Error cases
-		{"Invalid syntax", Options{}, Args{Source: "div { color: $white; }"}, false},
-		{"Import not found", Options{}, Args{Source: "@import \"foo\""}, false},
-		{"Import with ImportResolver, not found", Options{}, Args{Source: "@import \"foo\"", ImportResolver: colorsResolver}, false},
-		{"Error in ImportResolver.CanonicalizeURL", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnCanonicalizeURL: true}}, false},
-		{"Error in ImportResolver.Load", Options{}, Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnLoad: true}}, false},
-		{"Invalid OutputStyle", Options{}, Args{Source: "a", OutputStyle: "asdf"}, false},
-		{"Invalid SourceSyntax", Options{}, Args{Source: "a", SourceSyntax: "asdf"}, false},
-		{"Erro logging", Options{}, Args{Source: `@error "foo";`}, false},
+		{"Invalid syntax", godartsass.Options{}, godartsass.Args{Source: "div { color: $white; }"}, false},
+		{"Import not found", godartsass.Options{}, godartsass.Args{Source: "@import \"foo\""}, false},
+		{"Import with ImportResolver, not found", godartsass.Options{}, godartsass.Args{Source: "@import \"foo\"", ImportResolver: colorsResolver}, false},
+		{"Error in ImportResolver.CanonicalizeURL", godartsass.Options{}, godartsass.Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnCanonicalizeURL: true}}, false},
+		{"Error in ImportResolver.Load", godartsass.Options{}, godartsass.Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnLoad: true}}, false},
+		{"Invalid OutputStyle", godartsass.Options{}, godartsass.Args{Source: "a", OutputStyle: "asdf"}, false},
+		{"Invalid SourceSyntax", godartsass.Options{}, godartsass.Args{Source: "a", SourceSyntax: "asdf"}, false},
+		{"Erro logging", godartsass.Options{}, godartsass.Args{Source: `@error "foo";`}, false},
 	} {
 
 		test := test
@@ -116,7 +118,7 @@ body
 				_, err2 := transpiler.Execute(test.args)
 				c.Assert(err2.Error(), qt.Equals, err.Error())
 			} else {
-				expectedResult := test.expect.(Result)
+				expectedResult := test.expect.(godartsass.Result)
 				c.Assert(err, qt.IsNil)
 				// printJSON(result.SourceMap)
 				c.Assert(result, qt.Equals, expectedResult)
@@ -130,7 +132,7 @@ body
 func TestDebugWarn(t *testing.T) {
 	c := qt.New(t)
 
-	args := Args{
+	args := godartsass.Args{
 		URL: "/a/b/c.scss",
 		Source: `
 $color: #333;
@@ -144,12 +146,12 @@ body {
 `,
 	}
 
-	var events []LogEvent
-	eventHandler := func(e LogEvent) {
+	var events []godartsass.LogEvent
+	eventHandler := func(e godartsass.LogEvent) {
 		events = append(events, e)
 	}
 
-	opts := Options{
+	opts := godartsass.Options{
 		LogEventHandler: eventHandler,
 	}
 
@@ -159,7 +161,7 @@ body {
 	c.Assert(err, qt.IsNil)
 
 	c.Assert(result.CSS, qt.Equals, "body {\n  color: #333;\n}")
-	c.Assert(events, qt.DeepEquals, []LogEvent{
+	c.Assert(events, qt.DeepEquals, []godartsass.LogEvent{
 		{Type: 2, Message: "/a/b/c.scss:6:1: foo"},
 		{Type: 0, Message: "bar"},
 	})
@@ -188,13 +190,13 @@ content { color: #ccc; }
 @import "content";
 div { p { color: $moo; } }`
 
-	transpiler, clean := newTestTranspiler(c, Options{})
+	transpiler, clean := newTestTranspiler(c, godartsass.Options{})
 	defer clean()
 
 	result, err := transpiler.Execute(
-		Args{
+		godartsass.Args{
 			Source:       src,
-			OutputStyle:  OutputStyleCompressed,
+			OutputStyle:  godartsass.OutputStyleCompressed,
 			IncludePaths: []string{dir1, dir2},
 		},
 	)
@@ -204,7 +206,7 @@ div { p { color: $moo; } }`
 
 func TestTranspilerParallel(t *testing.T) {
 	c := qt.New(t)
-	transpiler, clean := newTestTranspiler(c, Options{})
+	transpiler, clean := newTestTranspiler(c, godartsass.Options{})
 	defer clean()
 	var wg sync.WaitGroup
 
@@ -218,7 +220,7 @@ $primary-color: #%03d;
 
 div { color: $primary-color; }`, num)
 
-				result, err := transpiler.Execute(Args{Source: src})
+				result, err := transpiler.Execute(godartsass.Args{Source: src})
 				c.Check(err, qt.IsNil)
 				c.Check(result.CSS, qt.Equals, fmt.Sprintf("div {\n  color: #%03d;\n}", num))
 				if c.Failed() {
@@ -233,14 +235,14 @@ div { color: $primary-color; }`, num)
 func TestTranspilerParallelImportResolver(t *testing.T) {
 	c := qt.New(t)
 
-	createImportResolver := func(width int) ImportResolver {
+	createImportResolver := func(width int) godartsass.ImportResolver {
 		return testImportResolver{
 			name:    "widths",
 			content: fmt.Sprintf(`$width:  %d`, width),
 		}
 	}
 
-	transpiler, clean := newTestTranspiler(c, Options{})
+	transpiler, clean := newTestTranspiler(c, godartsass.Options{})
 	defer clean()
 
 	var wg sync.WaitGroup
@@ -252,8 +254,8 @@ func TestTranspilerParallelImportResolver(t *testing.T) {
 
 			for j := 0; j < 10; j++ {
 				for k := 0; k < 20; k++ {
-					args := Args{
-						OutputStyle:    OutputStyleCompressed,
+					args := godartsass.Args{
+						OutputStyle:    godartsass.OutputStyleCompressed,
 						ImportResolver: createImportResolver(j + i),
 						Source: `
 @import "widths";
@@ -277,7 +279,7 @@ div { p { width: $width; } }`,
 
 func TestTranspilerClose(t *testing.T) {
 	c := qt.New(t)
-	transpiler, _ := newTestTranspiler(c, Options{})
+	transpiler, _ := newTestTranspiler(c, godartsass.Options{})
 	var wg sync.WaitGroup
 
 	for i := 0; i < 10; i++ {
@@ -295,14 +297,14 @@ div { color: $primary-color; }`, gor)
 				if num == 10 {
 					err := transpiler.Close()
 					if err != nil {
-						c.Check(err, qt.Equals, ErrShutdown)
+						c.Check(err, qt.Equals, godartsass.ErrShutdown)
 					}
 				}
 
-				result, err := transpiler.Execute(Args{Source: src})
+				result, err := transpiler.Execute(godartsass.Args{Source: src})
 
 				if err != nil {
-					c.Check(err, qt.Equals, ErrShutdown)
+					c.Check(err, qt.Equals, godartsass.ErrShutdown)
 				} else {
 					c.Check(err, qt.IsNil)
 					c.Check(result.CSS, qt.Equals, fmt.Sprintf("div {\n  color: #%03d;\n}", gor))
@@ -316,22 +318,21 @@ div { color: $primary-color; }`, gor)
 	}
 	wg.Wait()
 
-	for _, p := range transpiler.pending {
-		c.Assert(p.Error, qt.Equals, ErrShutdown)
-	}
+	c.Assert(transpiler.IsShutDown(), qt.Equals, true)
+
 }
 
 func BenchmarkTranspiler(b *testing.B) {
 	type tester struct {
 		src        string
 		expect     string
-		transpiler *Transpiler
+		transpiler *godartsass.Transpiler
 		clean      func()
 	}
 
-	newTester := func(b *testing.B, opts Options) tester {
+	newTester := func(b *testing.B, opts godartsass.Options) tester {
 		c := qt.New(b)
-		transpiler, clean := newTestTranspiler(c, Options{})
+		transpiler, clean := newTestTranspiler(c, godartsass.Options{})
 
 		return tester{
 			transpiler: transpiler,
@@ -343,7 +344,7 @@ func BenchmarkTranspiler(b *testing.B) {
 		defer t.clean()
 		b.ResetTimer()
 		for n := 0; n < b.N; n++ {
-			result, err := t.transpiler.Execute(Args{Source: t.src})
+			result, err := t.transpiler.Execute(godartsass.Args{Source: t.src})
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -354,7 +355,7 @@ func BenchmarkTranspiler(b *testing.B) {
 	}
 
 	b.Run("SCSS", func(b *testing.B) {
-		t := newTester(b, Options{})
+		t := newTester(b, godartsass.Options{})
 		t.src = sassSample
 		t.expect = sassSampleTranspiled
 		runBench(b, t)
@@ -363,10 +364,10 @@ func BenchmarkTranspiler(b *testing.B) {
 	// This is the obviously much slower way of doing it.
 	b.Run("Start and Execute", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
-			t := newTester(b, Options{})
+			t := newTester(b, godartsass.Options{})
 			t.src = sassSample
 			t.expect = sassSampleTranspiled
-			result, err := t.transpiler.Execute(Args{Source: t.src})
+			result, err := t.transpiler.Execute(godartsass.Args{Source: t.src})
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -378,13 +379,13 @@ func BenchmarkTranspiler(b *testing.B) {
 	})
 
 	b.Run("SCSS Parallel", func(b *testing.B) {
-		t := newTester(b, Options{})
+		t := newTester(b, godartsass.Options{})
 		t.src = sassSample
 		t.expect = sassSampleTranspiled
 		defer t.clean()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				result, err := t.transpiler.Execute(Args{Source: t.src})
+				result, err := t.transpiler.Execute(godartsass.Args{Source: t.src})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -396,29 +397,19 @@ func BenchmarkTranspiler(b *testing.B) {
 	})
 }
 
-func TestHasScheme(t *testing.T) {
-	c := qt.New(t)
-
-	c.Assert(hasScheme("file:foo"), qt.Equals, true)
-	c.Assert(hasScheme("http:foo"), qt.Equals, true)
-	c.Assert(hasScheme("http://foo"), qt.Equals, true)
-	c.Assert(hasScheme("123:foo"), qt.Equals, false)
-	c.Assert(hasScheme("foo"), qt.Equals, false)
-}
-
 func TestVersion(t *testing.T) {
 	c := qt.New(t)
 
-	version, err := Version(getSassEmbeddedFilename())
+	version, err := godartsass.Version(getSassEmbeddedFilename())
 	c.Assert(err, qt.IsNil)
 	c.Assert(version, qt.Not(qt.Equals), "")
 	c.Assert(version.ProtocolVersion, qt.Equals, "1.1.0")
 
 }
 
-func newTestTranspiler(c *qt.C, opts Options) (*Transpiler, func()) {
+func newTestTranspiler(c *qt.C, opts godartsass.Options) (*godartsass.Transpiler, func()) {
 	opts.DartSassEmbeddedFilename = getSassEmbeddedFilename()
-	transpiler, err := Start(opts)
+	transpiler, err := godartsass.Start(opts)
 	c.Assert(err, qt.IsNil)
 
 	return transpiler, func() {
@@ -433,7 +424,7 @@ func getSassEmbeddedFilename() string {
 		return filename
 	}
 
-	return defaultDartSassEmbeddedFilename
+	return "dart-sass-embedded"
 }
 
 // used for debugging
