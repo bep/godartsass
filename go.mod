@@ -3,9 +3,9 @@ module github.com/bep/godartsass/v2
 go 1.19
 
 require (
-	github.com/cli/safeexec v1.0.0
+	github.com/cli/safeexec v1.0.1
 	github.com/frankban/quicktest v1.14.2
-	google.golang.org/protobuf v1.25.0
+	google.golang.org/protobuf v1.30.0
 )
 
 require (
