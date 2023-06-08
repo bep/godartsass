@@ -36,8 +36,9 @@ const (
 )
 
 type testImportResolver struct {
-	name    string
-	content string
+	name         string
+	content      string
+	sourceSyntax godartsass.SourceSyntax
 
 	failOnCanonicalizeURL bool
 	failOnLoad            bool
@@ -54,14 +55,15 @@ func (t testImportResolver) CanonicalizeURL(url string) (string, error) {
 	return "file:/my" + t.name + "/scss/" + url + "_myfile.scss", nil
 }
 
-func (t testImportResolver) Load(url string) (string, error) {
+func (t testImportResolver) Load(url string) (godartsass.Import, error) {
 	if t.failOnLoad {
-		return "", errors.New("failed")
+		return godartsass.Import{}, errors.New("failed")
 	}
 	if !strings.Contains(url, t.name) {
 		panic("protocol error")
 	}
-	return t.content, nil
+	return godartsass.Import{Content: t.content, SourceSyntax: t.sourceSyntax}, nil
+
 }
 
 func TestTranspilerVariants(t *testing.T) {
@@ -70,6 +72,15 @@ func TestTranspilerVariants(t *testing.T) {
 	colorsResolver := testImportResolver{
 		name:    "colors",
 		content: `$white:    #ffff`,
+	}
+
+	resolverIndented := testImportResolver{
+		name: "main",
+		content: `
+#main
+    color: blue		
+`,
+		sourceSyntax: godartsass.SourceSyntaxSASS,
 	}
 
 	for _, test := range []struct {
@@ -93,6 +104,7 @@ body
 			SourceSyntax: godartsass.SourceSyntaxSASS,
 		}, godartsass.Result{CSS: "body{font:100% Helvetica,sans-serif;color:#333}"}},
 		{"Import resolver with source map", godartsass.Options{}, godartsass.Args{Source: "@import \"colors\";\ndiv { p { color: $white; } }", EnableSourceMap: true, ImportResolver: colorsResolver}, godartsass.Result{CSS: "div p {\n  color: white;\n}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"data:;charset=utf-8,@import%20%22colors%22;%0Adiv%20%7B%20p%20%7B%20color:%20$white;%20%7D%20%7D\",\"file:///mycolors/scss/colors_myfile.scss\"],\"names\":[],\"mappings\":\"AACM;EAAI,OCDC\"}"}},
+		{"Import resolver with indented source syntax", godartsass.Options{}, godartsass.Args{Source: "@import \"main\";\n", ImportResolver: resolverIndented}, godartsass.Result{CSS: "#main {\n  color: blue;\n}"}},
 
 		// Error cases
 		{"Invalid syntax", godartsass.Options{}, godartsass.Args{Source: "div { color: $white; }"}, false},

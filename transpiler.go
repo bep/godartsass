@@ -344,7 +344,8 @@ func (t *Transpiler) input() {
 		case *embeddedsass.OutboundMessage_ImportRequest_:
 			call := t.getCall(c.ImportRequest.CompilationId)
 			url := c.ImportRequest.GetUrl()
-			contents, loadErr := call.importResolver.Load(url)
+			imp, loadErr := call.importResolver.Load(url)
+			sourceSyntax := embeddedsass.Syntax_value[string(imp.SourceSyntax)]
 
 			var response *embeddedsass.InboundMessage_ImportResponse
 			var sourceMapURL string
@@ -368,8 +369,9 @@ func (t *Transpiler) input() {
 					Id: c.ImportRequest.GetId(),
 					Result: &embeddedsass.InboundMessage_ImportResponse_Success{
 						Success: &embeddedsass.InboundMessage_ImportResponse_ImportSuccess{
-							Contents:     contents,
+							Contents:     imp.Content,
 							SourceMapUrl: sourceMapURL,
+							Syntax:       embeddedsass.Syntax(sourceSyntax),
 						},
 					},
 				}

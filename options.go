@@ -80,7 +80,15 @@ func (opts *Options) init() error {
 // Load loads the canonicalized URL's content.
 type ImportResolver interface {
 	CanonicalizeURL(url string) (string, error)
-	Load(canonicalizedURL string) (string, error)
+	Load(canonicalizedURL string) (Import, error)
+}
+
+type Import struct {
+	// The content of the imported file.
+	Content string
+
+	// The syntax of the imported file.
+	SourceSyntax SourceSyntax
 }
 
 // Args holds the arguments to Execute.
