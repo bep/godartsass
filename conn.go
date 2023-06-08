@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"time"
 )
 
@@ -55,8 +57,19 @@ func (c conn) Start() error {
 
 // Close closes conn's WriteCloser, ReadClosers, and waits for the command to finish.
 func (c conn) Close() error {
+
 	writeErr := c.WriteCloser.Close()
 	readErr := c.readerCloser.Close()
+	var interruptErr error
+
+	if runtime.GOOS != "windows" {
+		// See https://github.com/bep/godartsass/issues/19
+		interruptErr = c.cmd.Process.Signal(os.Interrupt)
+		if interruptErr == os.ErrProcessDone {
+			interruptErr = nil
+		}
+	}
+
 	cmdErr := c.waitWithTimeout()
 
 	if writeErr != nil {
@@ -65,6 +78,10 @@ func (c conn) Close() error {
 
 	if readErr != nil {
 		return readErr
+	}
+
+	if interruptErr != nil {
+		return interruptErr
 	}
 
 	return cmdErr
@@ -79,10 +96,14 @@ func (c conn) waitWithTimeout() error {
 	go func() { result <- c.cmd.Wait() }()
 	select {
 	case err := <-result:
-		if _, ok := err.(*exec.ExitError); ok {
+		if eerr, ok := err.(*exec.ExitError); ok {
+			if eerr.Error() == "signal: interrupt" {
+				return nil
+			}
 			if brokenPipeRe.MatchString(c.stdErr.String()) {
 				return nil
 			}
+
 		}
 		return err
 	case <-time.After(5 * time.Second):
