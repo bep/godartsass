@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package sass.embedded_protocol;
+package sass.embedded_protocolv1;
 
 // The wrapper type for all messages sent from the host to the compiler. This
 // provides a `oneof` that makes it possible to determine the type of each

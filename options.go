@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bep/godartsass/internal/embeddedsass"
+	"github.com/bep/godartsass/internal/embeddedsassv1"
 )
 
 // Options configures a Transpiler.
@@ -124,11 +124,11 @@ type Args struct {
 	// Additional file paths to uses to resolve imports.
 	IncludePaths []string
 
-	sassOutputStyle  embeddedsass.OutputStyle
-	sassSourceSyntax embeddedsass.Syntax
+	sassOutputStyle  embeddedsassv1.OutputStyle
+	sassSourceSyntax embeddedsassv1.Syntax
 
 	// Ordered list starting with options.ImportResolver, then IncludePaths.
-	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
+	sassImporters []*embeddedsassv1.InboundMessage_CompileRequest_Importer
 }
 
 func (args *Args) init(seq uint32, opts Options) error {
@@ -139,23 +139,23 @@ func (args *Args) init(seq uint32, opts Options) error {
 		args.SourceSyntax = SourceSyntaxSCSS
 	}
 
-	v, ok := embeddedsass.OutputStyle_value[string(args.OutputStyle)]
+	v, ok := embeddedsassv1.OutputStyle_value[string(args.OutputStyle)]
 	if !ok {
 		return fmt.Errorf("invalid OutputStyle %q", args.OutputStyle)
 	}
-	args.sassOutputStyle = embeddedsass.OutputStyle(v)
+	args.sassOutputStyle = embeddedsassv1.OutputStyle(v)
 
-	v, ok = embeddedsass.Syntax_value[string(args.SourceSyntax)]
+	v, ok = embeddedsassv1.Syntax_value[string(args.SourceSyntax)]
 	if !ok {
 		return fmt.Errorf("invalid SourceSyntax %q", args.SourceSyntax)
 	}
 
-	args.sassSourceSyntax = embeddedsass.Syntax(v)
+	args.sassSourceSyntax = embeddedsassv1.Syntax(v)
 
 	if args.ImportResolver != nil {
-		args.sassImporters = []*embeddedsass.InboundMessage_CompileRequest_Importer{
+		args.sassImporters = []*embeddedsassv1.InboundMessage_CompileRequest_Importer{
 			{
-				Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_ImporterId{
+				Importer: &embeddedsassv1.InboundMessage_CompileRequest_Importer_ImporterId{
 					ImporterId: seq,
 				},
 			},
@@ -164,7 +164,7 @@ func (args *Args) init(seq uint32, opts Options) error {
 
 	if args.IncludePaths != nil {
 		for _, p := range args.IncludePaths {
-			args.sassImporters = append(args.sassImporters, &embeddedsass.InboundMessage_CompileRequest_Importer{Importer: &embeddedsass.InboundMessage_CompileRequest_Importer_Path{
+			args.sassImporters = append(args.sassImporters, &embeddedsassv1.InboundMessage_CompileRequest_Importer{Importer: &embeddedsassv1.InboundMessage_CompileRequest_Importer_Path{
 				Path: filepath.Clean(p),
 			}})
 		}
