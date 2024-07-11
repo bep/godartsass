@@ -1,10 +1,8 @@
 package godartsass_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,7 +61,6 @@ func (t testImportResolver) Load(url string) (godartsass.Import, error) {
 		panic("protocol error")
 	}
 	return godartsass.Import{Content: t.content, SourceSyntax: t.sourceSyntax}, nil
-
 }
 
 func TestTranspilerVariants(t *testing.T) {
@@ -179,19 +176,17 @@ body {
 }
 
 func TestIncludePaths(t *testing.T) {
-	dir1, _ := ioutil.TempDir(os.TempDir(), "libsass-test-include-paths-dir1")
-	defer os.RemoveAll(dir1)
-	dir2, _ := ioutil.TempDir(os.TempDir(), "libsass-test-include-paths-dir2")
-	defer os.RemoveAll(dir2)
+	dir1 := t.TempDir()
+	dir2 := t.TempDir()
 
 	colors := filepath.Join(dir1, "_colors.scss")
 	content := filepath.Join(dir2, "_content.scss")
 
-	ioutil.WriteFile(colors, []byte(`
+	os.WriteFile(colors, []byte(`
 $moo:       #f442d1 !default;
 `), 0o644)
 
-	ioutil.WriteFile(content, []byte(`
+	os.WriteFile(content, []byte(`
 content { color: #ccc; }
 `), 0o644)
 
@@ -330,7 +325,6 @@ div { color: $primary-color; }`, gor)
 	wg.Wait()
 
 	c.Assert(transpiler.IsShutDown(), qt.Equals, true)
-
 }
 
 func BenchmarkTranspiler(b *testing.B) {
@@ -414,7 +408,7 @@ func TestVersion(t *testing.T) {
 	version, err := godartsass.Version(getSassEmbeddedFilename())
 	c.Assert(err, qt.IsNil)
 	c.Assert(version, qt.Not(qt.Equals), "")
-	c.Assert(version.ProtocolVersion, qt.Equals, "2.0.0")
+	c.Assert(version.ProtocolVersion, qt.Equals, "2.7.1")
 }
 
 func newTestTranspiler(c *qt.C, opts godartsass.Options) (*godartsass.Transpiler, func()) {
@@ -435,12 +429,4 @@ func getSassEmbeddedFilename() string {
 	}
 
 	return "sass"
-}
-
-// used for debugging
-func printJSON(s string) {
-	m := make(map[string]interface{})
-	json.Unmarshal([]byte(s), &m)
-	b, _ := json.MarshalIndent(m, "", "  ")
-	fmt.Printf("%s", b)
 }
