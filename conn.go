@@ -57,7 +57,6 @@ func (c conn) Start() error {
 
 // Close closes conn's WriteCloser, ReadClosers, and waits for the command to finish.
 func (c conn) Close() error {
-
 	writeErr := c.WriteCloser.Close()
 	readErr := c.readerCloser.Close()
 	var interruptErr error
