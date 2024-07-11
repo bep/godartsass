@@ -531,12 +531,11 @@ func (t *Transpiler) sendInboundMessage(compilationID uint32, message *embeddeds
 		return err
 	}
 
-	headerLen, err = t.conn.Write(out)
-	if headerLen != len(out) {
-		return errors.New("failed to write payload")
+	if _, err = t.conn.Write(out); err != nil {
+		return fmt.Errorf("failed to write payload: %w", err)
 	}
 
-	return err
+	return nil
 }
 
 type call struct {
