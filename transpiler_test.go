@@ -1,8 +1,11 @@
 package godartsass_test
 
 import (
+	crand "crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,25 +15,6 @@ import (
 	"github.com/bep/godartsass/v2"
 
 	qt "github.com/frankban/quicktest"
-)
-
-const (
-	sassSample = `nav {
-  ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  li { display: inline-block; }
-
-  a {
-    display: block;
-    padding: 6px 12px;
-    text-decoration: none;
-  }
-}`
-	sassSampleTranspiled = "nav ul {\n  margin: 0;\n  padding: 0;\n  list-style: none;\n}\nnav li {\n  display: inline-block;\n}\nnav a {\n  display: block;\n  padding: 6px 12px;\n  text-decoration: none;\n}"
 )
 
 type testImportResolver struct {
@@ -329,19 +313,51 @@ div { color: $primary-color; }`, gor)
 
 func BenchmarkTranspiler(b *testing.B) {
 	type tester struct {
-		src        string
-		expect     string
+		sources    []string
 		transpiler *godartsass.Transpiler
 		clean      func()
 	}
 
+	const (
+		sassSample = `nav {
+	  ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	  }
+	
+	  li { display: inline-block; }
+	
+	  a {
+		display: block;
+		padding: 6px 12px;
+		text-decoration: none;
+	  }
+	}`
+	)
+
+	getSassSource := func() string {
+		s := sassSample
+
+		// Append some comment to make it unique.
+		comment := randStr(rand.Intn(1234))
+		s += "\n\n/*! " + comment + " */"
+
+		return s
+	}
+
 	newTester := func(b *testing.B, opts godartsass.Options) tester {
 		c := qt.New(b)
-		transpiler, clean := newTestTranspiler(c, godartsass.Options{})
+		sources := make([]string, b.N)
+		for i := 0; i < b.N; i++ {
+			sources[i] = getSassSource()
+		}
+		transpiler, clean := newTestTranspiler(c, opts)
 
 		return tester{
 			transpiler: transpiler,
 			clean:      clean,
+			sources:    sources,
 		}
 	}
 
@@ -349,20 +365,16 @@ func BenchmarkTranspiler(b *testing.B) {
 		defer t.clean()
 		b.ResetTimer()
 		for n := 0; n < b.N; n++ {
-			result, err := t.transpiler.Execute(godartsass.Args{Source: t.src})
+			_, err := t.transpiler.Execute(godartsass.Args{Source: t.sources[n]})
 			if err != nil {
 				b.Fatal(err)
 			}
-			if result.CSS != t.expect {
-				b.Fatalf("Got: %q\n", result.CSS)
-			}
+
 		}
 	}
 
 	b.Run("SCSS", func(b *testing.B) {
 		t := newTester(b, godartsass.Options{})
-		t.src = sassSample
-		t.expect = sassSampleTranspiled
 		runBench(b, t)
 	})
 
@@ -370,14 +382,9 @@ func BenchmarkTranspiler(b *testing.B) {
 	b.Run("Start and Execute", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			t := newTester(b, godartsass.Options{})
-			t.src = sassSample
-			t.expect = sassSampleTranspiled
-			result, err := t.transpiler.Execute(godartsass.Args{Source: t.src})
+			_, err := t.transpiler.Execute(godartsass.Args{Source: t.sources[n]})
 			if err != nil {
 				b.Fatal(err)
-			}
-			if result.CSS != t.expect {
-				b.Fatalf("Got: %q\n", result.CSS)
 			}
 			t.transpiler.Close()
 		}
@@ -385,18 +392,16 @@ func BenchmarkTranspiler(b *testing.B) {
 
 	b.Run("SCSS Parallel", func(b *testing.B) {
 		t := newTester(b, godartsass.Options{})
-		t.src = sassSample
-		t.expect = sassSampleTranspiled
+
 		defer t.clean()
 		b.RunParallel(func(pb *testing.PB) {
+			n := 0
 			for pb.Next() {
-				result, err := t.transpiler.Execute(godartsass.Args{Source: t.src})
+				_, err := t.transpiler.Execute(godartsass.Args{Source: t.sources[n]})
 				if err != nil {
 					b.Fatal(err)
 				}
-				if result.CSS != t.expect {
-					b.Fatalf("Got: %q\n", result.CSS)
-				}
+				n++
 			}
 		})
 	})
@@ -429,4 +434,11 @@ func getSassEmbeddedFilename() string {
 	}
 
 	return "sass"
+}
+
+func randStr(len int) string {
+	buff := make([]byte, len)
+	crand.Read(buff)
+	str := base64.StdEncoding.EncodeToString(buff)
+	return str[:len]
 }
