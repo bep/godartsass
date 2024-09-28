@@ -1,6 +1,7 @@
 package godartsass_test
 
 import (
+	"bytes"
 	crand "crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -268,8 +270,25 @@ div { p { width: $width; } }`,
 }
 
 func TestTranspilerClose(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// See https://github.com/sass/dart-sass/issues/2424
+		t.Skip("skipping test on Windows")
+	}
 	c := qt.New(t)
-	transpiler, _ := newTestTranspiler(c, godartsass.Options{})
+	var errBuff bytes.Buffer
+	transpiler, _ := newTestTranspiler(c,
+		godartsass.Options{
+			Stderr: &errBuff,
+			LogEventHandler: func(e godartsass.LogEvent) {
+				fmt.Println("LogEvent:", e)
+			},
+		},
+	)
+
+	defer func() {
+		fmt.Println("Stderr:", errBuff.String())
+	}()
+
 	var wg sync.WaitGroup
 
 	for i := 0; i < 10; i++ {
@@ -413,7 +432,7 @@ func TestVersion(t *testing.T) {
 	version, err := godartsass.Version(getSassEmbeddedFilename())
 	c.Assert(err, qt.IsNil)
 	c.Assert(version, qt.Not(qt.Equals), "")
-	c.Assert(strings.HasPrefix(version.ProtocolVersion, "2."), qt.IsTrue)
+	c.Assert(strings.HasPrefix(version.ProtocolVersion, "3."), qt.IsTrue, qt.Commentf("got: %q", version.ProtocolVersion))
 }
 
 func newTestTranspiler(c *qt.C, opts godartsass.Options) (*godartsass.Transpiler, func()) {

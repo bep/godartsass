@@ -2,6 +2,8 @@ package godartsass
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -28,6 +30,9 @@ type Options struct {
 	// LogEventHandler will, if set, receive log events from Dart Sass,
 	// e.g. @debug and @warn log statements.
 	LogEventHandler func(LogEvent)
+
+	// If not set, will default to os.Stderr.
+	Stderr io.Writer
 }
 
 // LogEvent is a type of log event from Dart Sass.
@@ -59,6 +64,10 @@ func (opts *Options) init() error {
 
 	if opts.Timeout == 0 {
 		opts.Timeout = 30 * time.Second
+	}
+
+	if opts.Stderr == nil {
+		opts.Stderr = os.Stderr
 	}
 
 	return nil
