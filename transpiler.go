@@ -49,7 +49,7 @@ func Start(opts Options) (*Transpiler, error) {
 	}
 	cmd := exec.Command(bin)
 	cmd.Args = append(cmd.Args, "--embedded")
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = opts.Stderr
 
 	conn, err := newConn(cmd)
 	if err != nil {
