@@ -413,7 +413,7 @@ func TestVersion(t *testing.T) {
 	version, err := godartsass.Version(getSassEmbeddedFilename())
 	c.Assert(err, qt.IsNil)
 	c.Assert(version, qt.Not(qt.Equals), "")
-	c.Assert(strings.HasPrefix(version.ProtocolVersion, "2."), qt.IsTrue)
+	c.Assert(strings.HasPrefix(version.ProtocolVersion, "3."), qt.IsTrue, qt.Commentf("got: %q", version.ProtocolVersion))
 }
 
 func newTestTranspiler(c *qt.C, opts godartsass.Options) (*godartsass.Transpiler, func()) {

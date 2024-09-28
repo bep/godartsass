@@ -4,7 +4,7 @@ on:
   pull_request:
 name: Test
 env:
-  SASS_VERSION: 1.63.2
+  SASS_VERSION: 1.79.4
 jobs:
   test:
     strategy:
