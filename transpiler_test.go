@@ -196,6 +196,42 @@ div { p { color: $moo; } }`
 	c.Assert(result.CSS, qt.Equals, "content{color:#ccc}div p{color:#f442d1}")
 }
 
+func TestSilenceDeprecations(t *testing.T) {
+	dir1 := t.TempDir()
+	colors := filepath.Join(dir1, "_colors.scss")
+
+	os.WriteFile(colors, []byte(`
+$moo:       #f442d1 !default;
+`), 0o644)
+
+	c := qt.New(t)
+	src := `
+@import "colors";
+div { p { color: $moo; } }`
+
+	var loggedImportDeprecation bool
+	transpiler, clean := newTestTranspiler(c, godartsass.Options{
+		LogEventHandler: func(e godartsass.LogEvent) {
+			if e.DeprecationType == "import" {
+				loggedImportDeprecation = true
+			}
+		},
+	})
+	defer clean()
+
+	result, err := transpiler.Execute(
+		godartsass.Args{
+			Source:              src,
+			OutputStyle:         godartsass.OutputStyleCompressed,
+			IncludePaths:        []string{dir1},
+			SilenceDeprecations: []string{"import"},
+		},
+	)
+	c.Assert(err, qt.IsNil)
+	c.Assert(loggedImportDeprecation, qt.IsFalse)
+	c.Assert(result.CSS, qt.Equals, "div p{color:#f442d1}")
+}
+
 func TestTranspilerParallel(t *testing.T) {
 	c := qt.New(t)
 	transpiler, clean := newTestTranspiler(c, godartsass.Options{})

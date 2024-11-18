@@ -216,6 +216,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 				},
 				SourceMap:               args.EnableSourceMap,
 				SourceMapIncludeSources: args.SourceMapIncludeSources,
+				SilenceDeprecation:      args.SilenceDeprecations,
 			},
 		}
 

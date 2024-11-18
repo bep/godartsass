@@ -136,6 +136,9 @@ type Args struct {
 	// Additional file paths to uses to resolve imports.
 	IncludePaths []string
 
+	// Deprecation IDs to silence, e.g. "import".
+	SilenceDeprecations []string
+
 	sassOutputStyle  embeddedsass.OutputStyle
 	sassSourceSyntax embeddedsass.Syntax
 
