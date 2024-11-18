@@ -53,6 +53,9 @@ type LogEvent struct {
 	// Type is the type of log event.
 	Type LogEventType
 
+	// DeprecationType is set if Type is LogEventTypeDeprecated.
+	DeprecationType string
+
 	// Message on the form url:line:col message.
 	Message string
 }
@@ -237,4 +240,11 @@ func ParseSourceSyntax(s string) SourceSyntax {
 	default:
 		return SourceSyntaxSCSS
 	}
+}
+
+func stringPointerToString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

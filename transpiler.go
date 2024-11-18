@@ -413,13 +413,15 @@ func (t *Transpiler) input() {
 					}
 					u, _ = url.QueryUnescape(u)
 					logEvent = LogEvent{
-						Type:    LogEventType(e.Type),
-						Message: fmt.Sprintf("%s:%d:%d: %s", u, e.Span.Start.Line, e.Span.Start.Column, c.LogEvent.GetMessage()),
+						Type:            LogEventType(e.Type),
+						DeprecationType: stringPointerToString(e.DeprecationType),
+						Message:         fmt.Sprintf("%s:%d:%d: %s", u, e.Span.Start.Line, e.Span.Start.Column, c.LogEvent.GetMessage()),
 					}
 				} else {
 					logEvent = LogEvent{
-						Type:    LogEventType(e.Type),
-						Message: e.GetMessage(),
+						Type:            LogEventType(e.Type),
+						DeprecationType: stringPointerToString(e.DeprecationType),
+						Message:         e.GetMessage(),
 					}
 				}
 
