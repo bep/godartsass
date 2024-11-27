@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bep/godartsass/v2/internal/embeddedsass"
+	"github.com/bep/godartsass/v2/internal/godartsasstesting"
 )
 
 // Options configures a Transpiler.
@@ -144,6 +145,9 @@ type Args struct {
 
 	// Ordered list starting with options.ImportResolver, then IncludePaths.
 	sassImporters []*embeddedsass.InboundMessage_CompileRequest_Importer
+
+	// Used in tests.
+	testingShouldPanicWhen godartsasstesting.PanicWhen
 }
 
 func (args *Args) init(seq uint32, opts Options) error {
@@ -250,4 +254,12 @@ func stringPointerToString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// Should only be used in tests.
+func TestingApplyArgsSettings(args *Args, shouldPanicWhen godartsasstesting.PanicWhen) {
+	if !godartsasstesting.IsTest {
+		panic("TestingApplyArgsSettings should only be used in tests")
+	}
+	args.testingShouldPanicWhen = shouldPanicWhen
 }

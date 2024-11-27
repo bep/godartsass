@@ -21,6 +21,7 @@ import (
 	"github.com/cli/safeexec"
 
 	"github.com/bep/godartsass/v2/internal/embeddedsass"
+	"github.com/bep/godartsass/v2/internal/godartsasstesting"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -358,7 +359,7 @@ func (t *Transpiler) input() {
 						CanonicalizeResponse: response,
 					},
 				},
-			)
+				0)
 		case *embeddedsass.OutboundMessage_ImportRequest_:
 			call := t.getCall(compilationID)
 			url := c.ImportRequest.GetUrl()
@@ -402,7 +403,7 @@ func (t *Transpiler) input() {
 						ImportResponse: response,
 					},
 				},
-			)
+				0)
 		case *embeddedsass.OutboundMessage_LogEvent_:
 			if t.opts.LogEventHandler != nil {
 				var logEvent LogEvent
@@ -471,41 +472,51 @@ func (t *Transpiler) nextSeq() uint32 {
 }
 
 func (t *Transpiler) newCall(createInbound func(seq uint32) (*embeddedsass.InboundMessage, error), args Args) (*call, error) {
-	t.mu.Lock()
-	id := t.nextSeq()
-	req, err := createInbound(id)
+	id, call, err := func() (uint32, *call, error) {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+
+		id := t.nextSeq()
+		req, err := createInbound(id)
+		if err != nil {
+			return id, nil, err
+		}
+
+		// Only set in tests.
+		if args.testingShouldPanicWhen.Has(godartsasstesting.ShouldPanicInNewCall) {
+			panic("testing ShouldPanicInNewCall")
+		}
+
+		switch req.Message.(type) {
+		case *embeddedsass.InboundMessage_CompileRequest_:
+		default:
+			return id, nil, fmt.Errorf("unsupported request message type. %T", req)
+		}
+
+		call := &call{
+			Request:        req,
+			Done:           make(chan *call, 1),
+			importResolver: args.ImportResolver,
+		}
+
+		if t.shutdown || t.closing {
+			call.Error = ErrShutdown
+			call.done()
+			return id, call, ErrShutdown
+		}
+
+		t.pending[id] = call
+
+		return id, call, nil
+	}()
 	if err != nil {
-		t.mu.Unlock()
 		return nil, err
 	}
 
-	call := &call{
-		Request:        req,
-		Done:           make(chan *call, 1),
-		importResolver: args.ImportResolver,
-	}
-
-	if t.shutdown || t.closing {
-		t.mu.Unlock()
-		call.Error = ErrShutdown
-		call.done()
-		return call, nil
-	}
-
-	t.pending[id] = call
-
-	t.mu.Unlock()
-
-	switch call.Request.Message.(type) {
-	case *embeddedsass.InboundMessage_CompileRequest_:
-	default:
-		return nil, fmt.Errorf("unsupported request message type. %T", call.Request.Message)
-	}
-
-	return call, t.sendInboundMessage(id, call.Request)
+	return call, t.sendInboundMessage(id, call.Request, args.testingShouldPanicWhen)
 }
 
-func (t *Transpiler) sendInboundMessage(compilationID uint32, message *embeddedsass.InboundMessage) error {
+func (t *Transpiler) sendInboundMessage(compilationID uint32, message *embeddedsass.InboundMessage, testingShouldPanicWhen godartsasstesting.PanicWhen) error {
 	t.sendMu.Lock()
 	defer t.sendMu.Unlock()
 	t.mu.Lock()
@@ -518,6 +529,11 @@ func (t *Transpiler) sendInboundMessage(compilationID uint32, message *embeddeds
 	out, err := proto.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %s", err)
+	}
+
+	// Only set in tests.
+	if testingShouldPanicWhen.Has(godartsasstesting.ShouldPanicInSendInbound1) {
+		panic("testing ShouldPanicInSendInbound1")
 	}
 
 	// Every message must begin with a varint indicating the length in bytes of
@@ -536,6 +552,11 @@ func (t *Transpiler) sendInboundMessage(compilationID uint32, message *embeddeds
 
 	if _, err = t.conn.Write(out); err != nil {
 		return fmt.Errorf("failed to write payload: %w", err)
+	}
+
+	// Only set in tests.
+	if testingShouldPanicWhen.Has(godartsasstesting.ShouldPanicInSendInbound2) {
+		panic("testing ShouldPanicInSendInbound2")
 	}
 
 	return nil
