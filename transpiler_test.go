@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/bep/godartsass/v2"
+	"github.com/bep/godartsass/v2/internal/godartsasstesting"
 
 	qt "github.com/frankban/quicktest"
 )
@@ -238,19 +239,35 @@ func TestTranspilerParallel(t *testing.T) {
 	defer clean()
 	var wg sync.WaitGroup
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func(num int) {
 			defer wg.Done()
-			for j := 0; j < 4; j++ {
+			for j := 0; j < 8; j++ {
 				src := fmt.Sprintf(`
 $primary-color: #%03d;
 
 div { color: $primary-color; }`, num)
 
-				result, err := transpiler.Execute(godartsass.Args{Source: src})
-				c.Check(err, qt.IsNil)
-				c.Check(result.CSS, qt.Equals, fmt.Sprintf("div {\n  color: #%03d;\n}", num))
+				var panicWhen godartsasstesting.PanicWhen
+				if num == 3 {
+					panicWhen = panicWhen | godartsasstesting.ShouldPanicInSendInbound1
+				}
+				if num == 8 {
+					panicWhen = panicWhen | godartsasstesting.ShouldPanicInNewCall
+				}
+				if num == 10 {
+					panicWhen = panicWhen | godartsasstesting.ShouldPanicInSendInbound2
+				}
+				args := godartsass.Args{Source: src}
+				godartsass.TestingApplyArgsSettings(&args, panicWhen)
+				if panicWhen > 0 {
+					c.Check(func() { transpiler.Execute(args) }, qt.PanicMatches, ".*ShouldPanicIn.*")
+				} else {
+					result, err := transpiler.Execute(args)
+					c.Check(err, qt.IsNil)
+					c.Check(result.CSS, qt.Equals, fmt.Sprintf("div {\n  color: #%03d;\n}", num))
+				}
 				if c.Failed() {
 					return
 				}
