@@ -1,3 +1,6 @@
+// Copyright 2024 Bjørn Erik Pedersen
+// SPDX-License-Identifier: MIT
+
 // Package godartsass provides a Go API for the Dass Sass Embedded protocol.
 //
 // Use the Start function to create and start a new thread safe transpiler.
