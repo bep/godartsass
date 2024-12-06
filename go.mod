@@ -1,11 +1,11 @@
 module github.com/bep/godartsass/v2
 
-go 1.19
+go 1.21
 
 require (
 	github.com/cli/safeexec v1.0.1
 	github.com/frankban/quicktest v1.14.2
-	google.golang.org/protobuf v1.30.0
+	google.golang.org/protobuf v1.35.2
 )
 
 require (
