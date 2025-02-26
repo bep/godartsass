@@ -74,7 +74,7 @@ func TestTranspilerVariants(t *testing.T) {
 		name   string
 		opts   godartsass.Options
 		args   godartsass.Args
-		expect interface{}
+		expect any
 	}{
 		{"Output style compressed", godartsass.Options{}, godartsass.Args{Source: "div { color: #ccc; }", OutputStyle: godartsass.OutputStyleCompressed}, godartsass.Result{CSS: "div{color:#ccc}"}},
 		{"Enable Source Map", godartsass.Options{}, godartsass.Args{Source: "div{color:blue;}", URL: "file://myproject/main.scss", OutputStyle: godartsass.OutputStyleCompressed, EnableSourceMap: true}, godartsass.Result{CSS: "div{color:blue}", SourceMap: "{\"version\":3,\"sourceRoot\":\"\",\"sources\":[\"file://myproject/main.scss\"],\"names\":[],\"mappings\":\"AAAA\"}"}},
@@ -242,11 +242,11 @@ func TestTranspilerParallel(t *testing.T) {
 	defer clean()
 	var wg sync.WaitGroup
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		wg.Add(1)
 		go func(num int) {
 			defer wg.Done()
-			for j := 0; j < 8; j++ {
+			for range 8 {
 				src := fmt.Sprintf(`
 $primary-color: #%03d;
 
@@ -295,13 +295,13 @@ func TestTranspilerParallelImportResolver(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 
-			for j := 0; j < 10; j++ {
-				for k := 0; k < 20; k++ {
+			for j := range 10 {
+				for range 20 {
 					args := godartsass.Args{
 						OutputStyle:    godartsass.OutputStyleCompressed,
 						ImportResolver: createImportResolver(j + i),
@@ -347,11 +347,11 @@ func TestTranspilerClose(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(gor int) {
 			defer wg.Done()
-			for j := 0; j < 4; j++ {
+			for j := range 4 {
 				src := fmt.Sprintf(`
 $primary-color: #%03d;
 
