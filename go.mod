@@ -1,6 +1,6 @@
 module github.com/bep/godartsass/v2
 
-go 1.21
+go 1.23
 
 require (
 	github.com/cli/safeexec v1.0.1
