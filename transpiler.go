@@ -21,8 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cli/safeexec"
-
 	"github.com/bep/godartsass/v2/internal/embeddedsass"
 	"github.com/bep/godartsass/v2/internal/godartsasstesting"
 	"google.golang.org/protobuf/proto"
@@ -47,7 +45,7 @@ func Start(opts Options) (*Transpiler, error) {
 	}
 
 	// See https://github.com/golang/go/issues/38736
-	bin, err := safeexec.LookPath(opts.DartSassEmbeddedFilename)
+	bin, err := exec.LookPath(opts.DartSassEmbeddedFilename)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +79,7 @@ func Start(opts Options) (*Transpiler, error) {
 // in dartSassEmbeddedFilename.
 func Version(dartSassEmbeddedFilename string) (DartSassVersion, error) {
 	var v DartSassVersion
-	bin, err := safeexec.LookPath(dartSassEmbeddedFilename)
+	bin, err := exec.LookPath(dartSassEmbeddedFilename)
 	if err != nil {
 		return v, err
 	}
