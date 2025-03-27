@@ -1,7 +1,7 @@
 // Copyright 2024 Bjørn Erik Pedersen
 // SPDX-License-Identifier: MIT
 
-// Package godartsass provides a Go API for the Dass Sass Embedded protocol.
+// Package godartsass provides a Go API for the Dart Sass Embedded protocol.
 //
 // Use the Start function to create and start a new thread safe transpiler.
 // Close it when done.
@@ -33,7 +33,7 @@ const defaultDartSassBinaryFilename = "sass"
 var ErrShutdown = errors.New("connection is shut down")
 
 // Start creates and starts a new SCSS transpiler that communicates with the
-// Dass Sass Embedded protocol via Stdin and Stdout.
+// Dart Sass Embedded protocol via Stdin and Stdout.
 //
 // Closing the transpiler will shut down the process.
 //
@@ -195,7 +195,7 @@ func (t *Transpiler) Close() error {
 }
 
 // Execute transpiles the string Source given in Args into CSS.
-// If Dart Sass resturns a "compile failure", the error returned will be
+// If Dart Sass returns a "compile failure", the error returned will be
 // of type SassError.
 func (t *Transpiler) Execute(args Args) (Result, error) {
 	var result Result
@@ -219,6 +219,7 @@ func (t *Transpiler) Execute(args Args) (Result, error) {
 				SourceMap:               args.EnableSourceMap,
 				SourceMapIncludeSources: args.SourceMapIncludeSources,
 				SilenceDeprecation:      args.SilenceDeprecations,
+				QuietDeps:               args.SilenceDependencyDeprecations,
 			},
 		}
 
