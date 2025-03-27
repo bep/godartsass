@@ -46,7 +46,7 @@ const (
 	// Usually triggered by the @warn directive.
 	LogEventTypeWarning LogEventType = iota
 
-	// Events trigered for usage of deprecated Sass features.
+	// Events triggered for usage of deprecated Sass features.
 	LogEventTypeDeprecated
 
 	// Triggered by the @debug directive.
@@ -142,6 +142,11 @@ type Args struct {
 
 	// Deprecation IDs to silence, e.g. "import".
 	SilenceDeprecations []string
+
+	// Whether to silence deprecation warnings from dependencies, where a
+	// dependency is considered any file transitively imported through a load
+	// path. This does not apply to @warn or @debug rules.
+	SilenceDependencyDeprecations bool
 
 	sassOutputStyle  embeddedsass.OutputStyle
 	sassSourceSyntax embeddedsass.Syntax

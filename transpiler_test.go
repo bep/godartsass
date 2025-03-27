@@ -65,7 +65,7 @@ func TestTranspilerVariants(t *testing.T) {
 		name: "main",
 		content: `
 #main
-    color: blue		
+    color: blue
 `,
 		sourceSyntax: godartsass.SourceSyntaxSASS,
 	}
@@ -101,7 +101,7 @@ body
 		{"Error in ImportResolver.Load", godartsass.Options{}, godartsass.Args{Source: "@import \"colors\";", ImportResolver: testImportResolver{name: "colors", failOnLoad: true}}, false},
 		{"Invalid OutputStyle", godartsass.Options{}, godartsass.Args{Source: "a", OutputStyle: "asdf"}, false},
 		{"Invalid SourceSyntax", godartsass.Options{}, godartsass.Args{Source: "a", SourceSyntax: "asdf"}, false},
-		{"Erro logging", godartsass.Options{}, godartsass.Args{Source: `@error "foo";`}, false},
+		{"Error logging", godartsass.Options{}, godartsass.Args{Source: `@error "foo";`}, false},
 	} {
 		test := test
 		c.Run(test.name, func(c *qt.C) {
@@ -234,6 +234,87 @@ div { p { color: $moo; } }`
 	c.Assert(err, qt.IsNil)
 	c.Assert(loggedImportDeprecation, qt.IsFalse)
 	c.Assert(result.CSS, qt.Equals, "div p{color:#f442d1}")
+}
+
+func TestSilenceDependencyDeprecations(t *testing.T) {
+	dir1 := t.TempDir()
+	headings := filepath.Join(dir1, "_headings.scss")
+
+	err := os.WriteFile(headings, []byte(`
+@use "sass:color";
+h1 { color: rgb(color.channel(#aaa, "red", $space: rgb), 0, 0); }
+h2 { color: rgb(color.red(#bbb), 0, 0); } // deprecated
+`), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	c := qt.New(t)
+	src := `
+@use "sass:color";
+@use "headings";
+h3 { color: rgb(color.channel(#ccc, "red", $space: rgb), 0, 0); }
+`
+
+	args := godartsass.Args{
+		OutputStyle:  godartsass.OutputStyleCompressed,
+		IncludePaths: []string{dir1},
+	}
+
+	tests := []struct {
+		name                          string
+		src                           string
+		silenceDependencyDeprecations bool
+		expectedLogMessage            string
+		expectedResult                string
+	}{
+		{
+			name:                          "A",
+			src:                           src,
+			silenceDependencyDeprecations: false,
+			expectedLogMessage:            "color.red() is deprecated",
+			expectedResult:                "h1{color:#a00}h2{color:#b00}h3{color:#c00}",
+		},
+		{
+			name:                          "B",
+			src:                           src,
+			silenceDependencyDeprecations: true,
+			expectedLogMessage:            "",
+			expectedResult:                "h1{color:#a00}h2{color:#b00}h3{color:#c00}",
+		},
+		{
+			name:                          "C",
+			src:                           src + "h4 { color: rgb(0, color.green(#ddd), 0); }",
+			silenceDependencyDeprecations: true,
+			expectedLogMessage:            "color.green() is deprecated",
+			expectedResult:                "h1{color:#a00}h2{color:#b00}h3{color:#c00}h4{color:#0d0}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args.Source = tt.src
+			args.SilenceDependencyDeprecations = tt.silenceDependencyDeprecations
+			logMessage := ""
+			transpiler, clean := newTestTranspiler(c, godartsass.Options{
+				LogEventHandler: func(e godartsass.LogEvent) {
+					logMessage = e.Message
+				},
+			})
+			defer clean()
+
+			result, err := transpiler.Execute(args)
+			c.Assert(err, qt.IsNil)
+
+			if tt.expectedLogMessage == "" {
+				c.Assert(logMessage, qt.Equals, "")
+			} else {
+				c.Assert(logMessage, qt.Contains, tt.expectedLogMessage)
+			}
+
+			c.Assert(result.CSS, qt.Equals, tt.expectedResult)
+		})
+	}
 }
 
 func TestTranspilerParallel(t *testing.T) {
@@ -400,9 +481,9 @@ func BenchmarkTranspiler(b *testing.B) {
 		padding: 0;
 		list-style: none;
 	  }
-	
+
 	  li { display: inline-block; }
-	
+
 	  a {
 		display: block;
 		padding: 6px 12px;
