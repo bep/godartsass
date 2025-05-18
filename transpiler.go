@@ -372,7 +372,7 @@ func (t *Transpiler) input() {
 			var sourceMapURL string
 
 			// Dart Sass expect a browser-accessible URL or an empty string.
-			// If no URL is supplied, a `data:` URL wil be generated
+			// If no URL is supplied, a `data:` URL will be generated
 			// automatically from `contents`
 			if hasScheme(url) {
 				sourceMapURL = url
