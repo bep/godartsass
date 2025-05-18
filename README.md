@@ -5,11 +5,10 @@
 
 This is a Go API backed by the native [Dart Sass](https://github.com/sass/dart-sass/releases) executable running with `sass --embedded`.
 
->**Note:** The `v2.x.x` of this project targets the `v2` of the Dart Sass Embedded protocol with the `sass` exexutable in releases that can be downloaeded [here](https://github.com/sass/dart-sass/releases). For `v1` you need to import `github.com/bep/godartsass` and not `github.com/bep/godartsass/v2`.
+>**Note:** The `v2.x.x` of this project targets the `v2` of the Dart Sass Embedded protocol with the `sass` executable in releases that can be downloaded [here](https://github.com/sass/dart-sass/releases). For `v1` you need to import `github.com/bep/godartsass` and not `github.com/bep/godartsass/v2`.
 
 The primary motivation for this project is to provide `SCSS` support to [Hugo](https://gohugo.io/). I welcome PRs with bug fixes. I will also consider adding functionality, but please raise an issue discussing it first.
 
 For LibSass bindings in Go, see [GoLibSass](https://github.com/bep/golibsass).
 
 ```
-
