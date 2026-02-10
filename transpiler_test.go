@@ -103,7 +103,6 @@ body
 		{"Invalid SourceSyntax", godartsass.Options{}, godartsass.Args{Source: "a", SourceSyntax: "asdf"}, false},
 		{"Error logging", godartsass.Options{}, godartsass.Args{Source: `@error "foo";`}, false},
 	} {
-		test := test
 		c.Run(test.name, func(c *qt.C) {
 			b, ok := test.expect.(bool)
 			shouldFail := ok && !b
