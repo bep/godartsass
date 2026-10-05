@@ -1,5 +1,4 @@
 [![Tests on Linux, MacOS and Windows](https://github.com/bep/godartsass/workflows/Test/badge.svg)](https://github.com/bep/godartsass/actions?query=workflow%3ATest)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bep/godartsass)](https://goreportcard.com/report/github.com/bep/godartsass)
 [![codecov](https://codecov.io/gh/bep/godartsass/branch/main/graph/badge.svg?token=OWZ9RCAYWO)](https://codecov.io/gh/bep/godartsass)
 [![GoDoc](https://godoc.org/github.com/bep/godartsass?status.svg)](https://godoc.org/github.com/bep/godartsass)
 
